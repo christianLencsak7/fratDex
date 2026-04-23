@@ -1,16 +1,16 @@
 :root {
-  --bg-dark: #303645;
-  --shell-red: #d44d4d;
-  --shell-red-shadow: #872f2f;
+  --bg-dark: #2a1050;
+  --shell-purple: #7040B0;
+  --shell-purple-shadow: #3a1870;
   --cream: #f6f0d8;
-  --panel: #d7e4e0;
-  --panel-dark: #aabcb7;
-  --ink: #1d222b;
-  --accent: #f0b03a;
-  --accent-red: #e94c42;
-  --grid: rgba(29, 34, 43, 0.12);
+  --panel: #ddd0f0;
+  --panel-dark: #b5a0d8;
+  --ink: #1a0a2e;
+  --accent: #FFB81C;
+  --accent-red: #C8102E;
+  --grid: rgba(82, 35, 152, 0.10);
   --success: #2b8b57;
-  --shadow: 0 6px 0 #151922;
+  --shadow: 0 6px 0 #1a0a2e;
 }
 
 * {
@@ -28,7 +28,7 @@ body {
   display: grid;
   place-items: center;
   background:
-    radial-gradient(circle at top, #7f8fb4 0%, #4b587d 35%, #232a40 100%);
+    radial-gradient(circle at top, #9B65D5 0%, #5B2D9A 35%, #2a1050 100%);
   font-family: "Press Start 2P", monospace;
   image-rendering: pixelated;
   color: var(--ink);
@@ -58,10 +58,10 @@ button {
   padding: 12px;
   border: 6px solid #11151d;
   background:
-    linear-gradient(145deg, #e85f5f 0%, var(--shell-red) 55%, #c84444 100%);
+    linear-gradient(145deg, #8B50C8 0%, var(--shell-purple) 55%, #5a308a 100%);
   box-shadow:
-    0 10px 0 var(--shell-red-shadow),
-    0 18px 28px rgba(0, 0, 0, 0.35);
+    0 10px 0 var(--shell-purple-shadow),
+    0 18px 28px rgba(0, 0, 0, 0.45);
 }
 
 .screen {
@@ -98,12 +98,12 @@ button {
   justify-content: space-between;
   align-items: center;
   padding: 5px 10px;
-  background: #1f2430;
+  background: #1a0a2e;
   color: #f8f5e8;
   text-transform: uppercase;
   letter-spacing: 1px;
   font-size: 8px;
-  border-bottom: 3px solid #0f1219;
+  border-bottom: 3px solid #080318;
 }
 
 /* Slim variant for dex */
@@ -178,7 +178,7 @@ button {
 .chunk-panel {
   border: 4px solid #11151d;
   background: var(--panel);
-  box-shadow: 0 5px 0 #6f817a;
+  box-shadow: 0 5px 0 #6a4a90;
 }
 
 .selectable,
@@ -214,7 +214,7 @@ button {
   height: 100%;
   padding: 10px;
   background:
-    linear-gradient(180deg, #cfd9ec 0%, #95a7c8 42%, #627596 100%);
+    linear-gradient(180deg, #c8b8e8 0%, #8B65B8 42%, #5a3588 100%);
   text-align: center;
   /* Not interactive — just a display */
   cursor: default;
@@ -238,10 +238,10 @@ button {
   border: 6px solid #11151d;
   border-radius: 50%;
   background:
-    radial-gradient(circle, #f8f8f8 0 30%, #7da0bf 30% 42%, #24344f 42% 100%);
+    radial-gradient(circle, #f8f8f8 0 30%, #9B65D0 30% 42%, #522398 42% 100%);
   box-shadow:
     inset 0 0 0 6px rgba(248, 247, 223, 0.2),
-    0 6px 0 #41526d;
+    0 6px 0 #3a1870;
 }
 
 .camera-circle span {
@@ -265,7 +265,7 @@ button {
   justify-content: space-between;
   min-height: 50px;
   padding: 8px 12px;
-  background: #e7efe6;
+  background: #e8d8f4;
 }
 
 .menu-button::after {
@@ -388,8 +388,8 @@ button {
 
 .mode-dialog-title {
   padding: 6px 10px;
-  background: #1f2430;
-  color: #f0b03a;
+  background: #1a0a2e;
+  color: var(--accent);
   font-size: 8px;
   letter-spacing: 2px;
   border-bottom: 3px solid #11151d;
@@ -404,7 +404,7 @@ button {
   font-size: 9px;
   border: 0;
   border-bottom: 3px solid #11151d;
-  background: #e7efe6;
+  background: #e8d8f4;
   color: var(--ink);
   cursor: pointer;
   gap: 8px;
@@ -459,7 +459,7 @@ button {
   gap: 8px;
   padding: 6px 8px;
   border: 3px solid #11151d;
-  background: #e7efe6;
+  background: #e9d8f4;
   font-size: 8px;
   cursor: pointer;
   text-align: left;
@@ -506,7 +506,7 @@ button {
   flex: 1;
   height: 8px;
   border: 2px solid #11151d;
-  background: #c4d4ce;
+  background: #c0a8e8;
   overflow: hidden;
 }
 
@@ -658,7 +658,7 @@ button {
   gap: 2px;
   padding: 3px;
   border: 3px solid #11151d;
-  background: #e0ebe7;
+  background: #e4d4f0;
   text-align: center;
   cursor: pointer;
   min-height: 0;
@@ -675,9 +675,9 @@ button {
   position: relative;
   height: 42px;
   border: 3px solid #11151d;
-  /* dark-tech console split */
+  /* SigEp purple console split */
   background:
-    linear-gradient(180deg, #2c3545 0 50%, #11151d 50% 100%);
+    linear-gradient(180deg, #3a1a6e 0 50%, #1a0a2e 50% 100%);
   overflow: hidden;
 }
 
@@ -691,7 +691,7 @@ button {
   bottom: 4px;
   left: 50%;
   transform: translateX(-50%);
-  background: #1a1f2b;
+  background: #FFB81C;
   /* hard pixel — no border-radius */
 }
 
@@ -704,7 +704,7 @@ button {
   bottom: 22px;
   left: 50%;
   transform: translateX(-50%);
-  background: #1a1f2b;
+  background: #FFB81C;
 }
 
 /* No custom per-member sprite overrides — pixel silhouette is used for all collected members */
@@ -772,7 +772,7 @@ button {
   grid-area: sprite;
   position: relative;
   border: 4px solid #11151d;
-  background: linear-gradient(180deg, #2c3545 0 52%, #11151d 52% 100%);
+  background: linear-gradient(180deg, #3a1a6e 0 52%, #1a0a2e 52% 100%);
   overflow: hidden;
 }
 
@@ -785,7 +785,7 @@ button {
   bottom: 8px;
   left: 50%;
   transform: translateX(-50%);
-  background: #1a1f2b;
+  background: #FFB81C;
 }
 
 .detail-sprite.sprite-collected::after {
@@ -796,7 +796,7 @@ button {
   bottom: 60px;
   left: 50%;
   transform: translateX(-50%);
-  background: #1a1f2b;
+  background: #FFB81C;
 }
 
 /* Uncollected question mark (large) */
@@ -886,7 +886,7 @@ button {
   display: block;
   height: 100%;
   width: var(--bar-fill, 50%);
-  background: linear-gradient(90deg, var(--accent) 0 65%, #ef7c4e 65% 100%);
+  background: linear-gradient(90deg, var(--accent) 0 65%, #C8102E 65% 100%);
 }
 
 .notes-box {
@@ -963,7 +963,7 @@ button {
   gap: 8px;
   padding: 10px 8px;
   border: 4px solid #11151d;
-  background: #e9efe7;
+  background: #e9d8f4;
   line-height: 1.6;
   font-size: 9px;
 }
@@ -972,7 +972,7 @@ button {
   width: 18px;
   height: 18px;
   border: 3px solid #11151d;
-  background-color: #e56020;
+  background-color: #C8102E;
   background-image:
     linear-gradient(to bottom, transparent 42%, #11151d 42%, #11151d 58%, transparent 58%),
     linear-gradient(to right, transparent 42%, #11151d 42%, #11151d 58%, transparent 58%),
@@ -993,7 +993,7 @@ button {
 }
 
 .task-row.is-complete {
-  background: #d6f0d8;
+  background: #d8d0f4;
 }
 
 .task-row.is-complete .task-icon {

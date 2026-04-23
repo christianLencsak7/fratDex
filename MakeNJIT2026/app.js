@@ -159,7 +159,7 @@ function setupMenu() {
     const p = players.find(player => player.name === lastScan);
     if (p) {
       if (lastScanName) lastScanName.textContent = p.name;
-      if (lastScanMeta) lastScanMeta.textContent = `${p.pos} · ${p.exp}`;
+      if (lastScanMeta) lastScanMeta.textContent = p.pos;
       if (lastScanInfo) lastScanInfo.style.display = "flex";
       if (camLabel) camLabel.style.display = "none";
 
@@ -524,9 +524,8 @@ function setupDex() {
     const rows = [
       ["Chapter", player.team],
       ["Role",    player.pos],
-      ["Year",    player.exp],
-      ["Major",   player.college],
-      ["Height",  player.ht.replace("-", "'\u00a0") + "\u201d"],
+      ["School",  "Stevens"],
+      ["Frat",    "\u03a3\u03a6\u0395"],
     ];
     return `<div class="profile-grid">${
       rows.map(([label, val]) =>
