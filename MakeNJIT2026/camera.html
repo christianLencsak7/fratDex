@@ -11,22 +11,45 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="styles.css" />
+    <style>
+      /* Override: the MJPEG img fills the camera slot just like the video did */
+      .mjpeg-feed {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        /* Mirror so it feels natural when facing the user */
+        transform: scaleX(-1);
+      }
+    </style>
   </head>
   <body data-page="camera">
     <main class="console">
       <section class="screen">
-        <!-- Full-screen camera — no header, no footer -->
         <div class="camera-fullscreen">
-          <!-- Live webcam feed -->
-          <video id="cam-video" class="cam-video" autoplay playsinline muted></video>
 
-          <!-- Captured photo fades in over the viewfinder -->
-          <canvas id="cam-canvas" class="cam-canvas"></canvas>
+          <!--
+            MJPEG stream from the Pi's FastAPI server.
+            The src is set dynamically by app.js using PI_HOST.
+            Falls back gracefully if the stream is unavailable.
+          -->
+          <img
+            id="cam-video"
+            class="mjpeg-feed"
+            alt="Live camera feed"
+            onerror="this.style.display='none'; document.getElementById('cam-offline').style.display='flex';"
+          />
 
-          <!-- Scan label -->
-          <div class="scan-label blink" id="scan-label">Scanning Frame</div>
+          <!-- Offline fallback -->
+          <div id="cam-offline" class="centered-copy" style="display:none; position:absolute; inset:0; background:#0a0c10; color:#f6f0d8; font-size:8px;">
+            Camera offline
+          </div>
 
-          <!-- Capture reticle -->
+          <!-- Scan label — updated by JS after API response -->
+          <div class="scan-label blink" id="scan-label">Tap to Scan</div>
+
+          <!-- Tap anywhere to scan (or press Space) -->
           <div class="cam-reticle" aria-hidden="true"></div>
         </div>
       </section>

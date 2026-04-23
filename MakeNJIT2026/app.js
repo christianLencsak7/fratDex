@@ -3,10 +3,21 @@ const page = document.body.dataset.page;
 // Members data is loaded from players.js (included before this script in HTML)
 // Tasks are loaded from tasks.js
 
+// ─── Pi Host Configuration ───────────────────────────────────────
+// When running on the Pi itself (Nginx/kiosk): leave PI_HOST empty ("") —
+//   all fetch() calls use relative URLs and Flask/FastAPI serve from origin.
+// When testing from a laptop: set PI_HOST to "http://<PI_IP>:8000"
+const PI_HOST = ""; // e.g. "http://192.168.1.42:8000"
+
+const API_SCAN  = PI_HOST ? `${PI_HOST}/api/scan`  : "/api/scan";
+const API_STATE = PI_HOST ? `${PI_HOST}/api/state` : "/api/state";
+const API_RESET = PI_HOST ? `${PI_HOST}/api/reset` : "/api/reset";
+const VIDEO_FEED = PI_HOST ? `${PI_HOST}/video_feed` : "/video_feed";
+
 // ─── Server state sync ───────────────────────────────────────────
 async function syncState() {
   try {
-    const res = await fetch("/api/state");
+    const res = await fetch(API_STATE);
     if (!res.ok) return false;
     const state = await res.json();
     let changed = false;
@@ -208,56 +219,28 @@ function setupMenu() {
   });
 }
 
-// ─── Camera ──────────────────────────────────────────────────────
+// ─── Camera (MJPEG stream from FastAPI /video_feed) ──────────────
 function setupCamera() {
-  const video     = document.getElementById("cam-video");
-  const canvas    = document.getElementById("cam-canvas");
+  const imgEl     = document.getElementById("cam-video");
   const scanLabel = document.getElementById("scan-label");
-  let stream    = null;
-  let captured  = false;
+  let scanning    = false;
 
-  async function startCam() {
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-      video.srcObject = stream;
-    } catch {
-      video.style.display = "none";
-      if (scanLabel) scanLabel.textContent = "No Camera";
-    }
-  }
+  // Point the MJPEG img tag at the FastAPI stream
+  if (imgEl) imgEl.src = VIDEO_FEED;
 
-  async function capture() {
-    if (captured) return;
-    captured = true;
-
-    const w = video.videoWidth || canvas.offsetWidth;
-    const h = video.videoHeight || canvas.offsetHeight;
-    canvas.width  = w;
-    canvas.height = h;
-
-    const ctx = canvas.getContext("2d");
-    ctx.save();
-    ctx.scale(-1, 1);
-    ctx.drawImage(video, -w, 0, w, h);
-    ctx.restore();
-
-    canvas.classList.add("captured");
+  async function scan() {
+    if (scanning) return;
+    scanning = true;
 
     if (scanLabel) {
       scanLabel.textContent = "Scanning...";
       scanLabel.classList.add("blink");
     }
 
-    if (stream) stream.getTracks().forEach((t) => t.stop());
-
     try {
-      const imageData = canvas.toDataURL("image/jpeg", 0.9);
-      const response  = await fetch("/api/recognize", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ image: imageData }),
-      });
-      const result = await response.json();
+      // Tell the Pi to grab the current frame and run InsightFace on it
+      const response = await fetch(API_SCAN, { method: "POST" });
+      const result   = await response.json();
 
       if (result.success && result.player && result.player !== "Unknown") {
         if (scanLabel) {
@@ -265,7 +248,6 @@ function setupCamera() {
           scanLabel.classList.remove("blink");
         }
         localStorage.setItem("last-scanned-player", result.player);
-        localStorage.setItem("last-scanned-image",  imageData);
       } else {
         if (scanLabel) {
           scanLabel.textContent = "No Match";
@@ -279,20 +261,16 @@ function setupCamera() {
       }
     }
 
-    setTimeout(() => goHome(), 2000);
+    setTimeout(() => goHome(), 2200);
   }
 
-  document.addEventListener("contextmenu", (e) => { e.preventDefault(); capture(); });
+  // Tap anywhere on the screen or press Space to trigger a scan
+  document.addEventListener("click",       () => scan());
+  document.addEventListener("contextmenu", (e) => { e.preventDefault(); scan(); });
   document.addEventListener("keydown", (event) => {
-    if (event.key === " " || event.key === "Spacebar") { event.preventDefault(); capture(); return; }
-    if (event.key === "Escape" || event.key === "Backspace") {
-      event.preventDefault();
-      if (stream) stream.getTracks().forEach((t) => t.stop());
-      goHome();
-    }
+    if (event.key === " " || event.key === "Spacebar") { event.preventDefault(); scan(); return; }
+    if (event.key === "Escape" || event.key === "Backspace") { event.preventDefault(); goHome(); }
   });
-
-  startCam();
 }
 
 // ─── Dex ─────────────────────────────────────────────────────────

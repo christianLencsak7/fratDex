@@ -1,0 +1,208 @@
+"""
+FratDex API – FastAPI Edition
+────────────────────────────────────────────────────────────────────
+Endpoints
+─────────
+GET  /video_feed        → MJPEG stream (live camera + overlay text)
+GET  /api/database      → JSON list of all known names in the pickle DB
+POST /api/scan          → Grab current frame, run recognition, update state
+GET  /api/state         → { collected: [...] }
+POST /api/reset         → Clear all collected
+
+Run:
+  uvicorn api:app --host 0.0.0.0 --port 8000 --reload
+"""
+
+from fastapi import FastAPI
+from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+import cv2
+import numpy as np
+import pickle
+import os
+import json
+import time
+import threading
+
+# ─── Load InsightFace ─────────────────────────────────────────────────────────
+from insightface.app import FaceAnalysis
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH    = os.path.join(SCRIPT_DIR, "pokedex_database.pkl")
+STATE_FILE = os.path.join(SCRIPT_DIR, "state.json")
+
+with open(DB_PATH, "rb") as f:
+    database = pickle.load(f)
+
+print(f"✅ Loaded FratDex database with {len(database)} people: {list(database.keys())}")
+
+face_app = FaceAnalysis(name="buffalo_l")
+face_app.prepare(ctx_id=-1, det_size=(320, 320))
+
+THRESHOLD = 0.45   # cosine similarity cutoff — tuned for personal faces
+
+# ─── State helpers ─────────────────────────────────────────────────────────────
+
+def load_state() -> dict:
+    if not os.path.exists(STATE_FILE):
+        return {"collected": []}
+    with open(STATE_FILE, "r") as f:
+        return json.load(f)
+
+def save_state(state: dict):
+    with open(STATE_FILE, "w") as f:
+        json.dump(state, f, indent=2)
+
+# ─── Face recognition helper ───────────────────────────────────────────────────
+
+def recognize_person(embedding) -> tuple[str, float]:
+    best_match, best_score = "Unknown", -1.0
+    for name, emb in database.items():
+        sim = float(np.dot(embedding, emb) / (np.linalg.norm(embedding) * np.linalg.norm(emb)))
+        if sim > best_score:
+            best_score = sim
+            best_match = name
+    if best_score >= THRESHOLD:
+        return best_match, best_score
+    return "Unknown", best_score
+
+# ─── Camera (initialized once at startup) ─────────────────────────────────────
+
+cap = cv2.VideoCapture(0)  # change to 1 for external USB webcam
+if not cap.isOpened():
+    raise RuntimeError("❌ Could not open camera. Check index (0 or 1).")
+print("📷 Camera ready.")
+
+# Shared state for the overlay label shown on the stream
+_lock         = threading.Lock()
+_overlay_text = ""
+_overlay_color = (0, 255, 0)
+_overlay_until = 0.0
+
+def set_overlay(text: str, color=(0, 255, 0), duration=4.0):
+    global _overlay_text, _overlay_color, _overlay_until
+    with _lock:
+        _overlay_text  = text
+        _overlay_color = color
+        _overlay_until = time.time() + duration
+
+# ─── MJPEG frame generator ────────────────────────────────────────────────────
+
+def generate_frames():
+    """Yields MJPEG boundary frames for /video_feed."""
+    while True:
+        success, frame = cap.read()
+        if not success:
+            break
+
+        # Draw overlay text on the frame
+        with _lock:
+            text  = _overlay_text  if time.time() < _overlay_until else ""
+            color = _overlay_color
+
+        if text:
+            # Retro-style label: dark shadow + bright text
+            cv2.putText(frame, text, (28, 62),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1.8, (0, 0, 0), 6)
+            cv2.putText(frame, text, (30, 60),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1.8, color, 4)
+
+        # Draw a scan reticle in the centre
+        h, w = frame.shape[:2]
+        rx, ry, rs = w // 2, h // 2, 80
+        cv2.rectangle(frame, (rx - rs, ry - rs), (rx + rs, ry + rs), (255, 247, 223), 2)
+
+        # Encode to JPEG
+        _, buffer = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 75])
+        yield (
+            b"--frame\r\n"
+            b"Content-Type: image/jpeg\r\n\r\n"
+            + buffer.tobytes()
+            + b"\r\n"
+        )
+
+# ─── FastAPI app ──────────────────────────────────────────────────────────────
+
+app = FastAPI(title="FratDex API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ─── Routes ───────────────────────────────────────────────────────────────────
+
+@app.get("/video_feed")
+def video_feed():
+    """Live MJPEG camera stream. Drop into any <img src="..."> tag."""
+    return StreamingResponse(
+        generate_frames(),
+        media_type="multipart/x-mixed-replace; boundary=frame"
+    )
+
+
+@app.get("/api/database")
+def get_database():
+    """Returns all known names in the face database."""
+    return JSONResponse({"names": list(database.keys()), "count": len(database)})
+
+
+@app.post("/api/scan")
+def scan():
+    """
+    Grab the current camera frame, run InsightFace recognition,
+    update state.json if a new member is found, and return the result.
+    Called from the frontend when the user taps SCAN.
+    """
+    success, frame = cap.read()
+    if not success:
+        return JSONResponse({"success": False, "error": "Camera read failed"}, status_code=500)
+
+    faces = face_app.get(frame)
+
+    if not faces:
+        set_overlay("No face", (0, 0, 255))
+        return JSONResponse({"success": True, "player": "Unknown", "reason": "No face detected"})
+
+    # Use the largest detected face
+    face = max(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
+    name, score = recognize_person(face.embedding)
+
+    print(f"[Scan] Best match: {name} ({score:.3f})")
+
+    if name != "Unknown":
+        state = load_state()
+        already = name in state["collected"]
+        if not already:
+            state["collected"].append(name)
+            save_state(state)
+        set_overlay(name, (80, 255, 80))
+        return JSONResponse({
+            "success":         True,
+            "player":          name,
+            "score":           round(score, 3),
+            "newly_collected": not already,
+            "total_collected": len(state["collected"]),
+        })
+    else:
+        set_overlay("Unknown", (0, 0, 255))
+        return JSONResponse({"success": True, "player": "Unknown", "score": round(score, 3)})
+
+
+@app.get("/api/state")
+def get_state():
+    return JSONResponse(load_state())
+
+
+@app.post("/api/reset")
+def reset_state():
+    empty = {"collected": []}
+    save_state(empty)
+    return JSONResponse({"success": True})
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok", "db_size": len(database)}
