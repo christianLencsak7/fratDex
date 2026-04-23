@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FratDex | Camera</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body data-page="camera">
+    <main class="console">
+      <section class="screen">
+        <!-- Full-screen camera — no header, no footer -->
+        <div class="camera-fullscreen">
+          <!-- Live webcam feed -->
+          <video id="cam-video" class="cam-video" autoplay playsinline muted></video>
+
+          <!-- Captured photo fades in over the viewfinder -->
+          <canvas id="cam-canvas" class="cam-canvas"></canvas>
+
+          <!-- Scan label -->
+          <div class="scan-label blink" id="scan-label">Scanning Frame</div>
+
+          <!-- Capture reticle -->
+          <div class="cam-reticle" aria-hidden="true"></div>
+        </div>
+      </section>
+    </main>
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="players.js"></script>
+    <script src="tasks.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

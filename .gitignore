@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+venv/
+
+# InsightFace model cache
+.insightface/
+buffalo_l/
+
+# Old NBA training data — not needed in FratDex
+MakeNJIT2026/FaceRegModel/NBAPlayers/
+
+# Captured scans (runtime artifacts)
+MakeNJIT2026/captured_scan.jpg
+
+# OS
+.DS_Store
+Thumbs.db

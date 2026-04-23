@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FratDex</title>
+  <meta name="description" content="FratDex – scan and collect your frat brothers and sisters." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body data-page="menu">
+  <main class="console">
+    <section class="screen screen-menu">
+      <div class="page-content page-content-menu">
+        <div class="menu-layout">
+          <!-- Decorative camera display – updates after a scan -->
+          <div class="take-pic-card" id="take-pic-card" aria-hidden="true">
+            <span class="camera-circle" id="camera-circle">
+              <span id="camera-circle-label">TAKE A PIC</span>
+            </span>
+            <div class="last-scan-info" id="last-scan-info" style="display:none;">
+              <div class="last-scan-name" id="last-scan-name"></div>
+              <div class="last-scan-meta" id="last-scan-meta"></div>
+            </div>
+          </div>
+
+          <div class="menu-stack menu-stack-compact">
+            <button id="nav-camera-menu" class="menu-button chunk-panel selectable" data-nav-id="nav-camera-menu"
+              data-left="nav-camera-menu" data-up="nav-camera-menu" data-down="nav-dex-menu" data-href="camera.html">
+              <span>CAMERA</span>
+            </button>
+
+            <button id="nav-dex-menu" class="menu-button chunk-panel selectable" data-nav-id="nav-dex-menu"
+              data-left="nav-dex-menu" data-up="nav-camera-menu" data-down="nav-tasks-menu" data-href="dex.html">
+              <span>DEX</span>
+            </button>
+
+            <button id="nav-tasks-menu" class="menu-button chunk-panel selectable" data-nav-id="nav-tasks-menu"
+              data-left="nav-tasks-menu" data-up="nav-dex-menu" data-down="nav-tasks-menu" data-href="tasks.html">
+              <span>TASKS</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script src="players.js"></script>
+  <script src="tasks.js"></script>
+  <script src="app.js"></script>
+</body>
+
+</html>

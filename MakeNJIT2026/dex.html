@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FratDex | Database</title>
+    <meta name="description" content="Browse your collected frat members." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body data-page="dex">
+    <main class="console">
+      <section class="screen">
+
+        <!-- ── MODE SELECT (entry popup) ────────────────────── -->
+        <div id="dex-mode-view" class="dex-view">
+          <header class="status-bar dex-status-bar">
+            <span>FRATDEX</span>
+            <span id="dex-count" class="task-count-badge">Collected 0/2</span>
+          </header>
+          <div class="page-content page-content-dex mode-select-wrap">
+            <div class="mode-dialog">
+              <div class="mode-dialog-title">SEARCH</div>
+              <button id="mode-all" class="mode-option">ALL MEMBERS</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── ALL-MEMBERS GRID ──────────────────────────────── -->
+        <div id="dex-grid-view" class="dex-view dex-view--hidden">
+          <header class="status-bar dex-status-bar">
+            <span>ALL MEMBERS</span>
+            <span id="dex-grid-count" class="task-count-badge">0/0</span>
+          </header>
+          <div class="page-content page-content-dex">
+            <div class="dex-grid-shell">
+              <div id="dex-grid" class="dex-grid" aria-label="Member grid"></div>
+              <div class="dex-pager" aria-label="Member pages">
+                <button id="dex-grid-prev" class="pager-button" type="button">PREV</button>
+                <div id="dex-grid-page" class="pager-label">PAGE 1 / 1</div>
+                <button id="dex-grid-next" class="pager-button" type="button">NEXT</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── DETAIL VIEW ───────────────────────────────────── -->
+        <div id="dex-detail-view" class="dex-view dex-view--hidden">
+          <header class="status-bar dex-status-bar">
+            <span id="detail-index-label">1 / 0</span>
+            <span id="detail-status-badge" class="task-count-badge">Collected</span>
+          </header>
+          <div class="page-content page-content-dex detail-card">
+            <div id="sprite-box" class="detail-sprite"></div>
+            <div class="detail-quick-info chunk-panel">
+              <h1 id="detail-name" class="detail-name"></h1>
+              <p  id="detail-team" class="detail-team"></p>
+              <p  id="detail-role" class="detail-role"></p>
+            </div>
+            <div class="detail-stat-band chunk-panel">
+              <div id="stat-grid"    class="stat-grid"></div>
+              <div id="detail-notes" class="notes-box"></div>
+            </div>
+          </div>
+        </div>
+
+      </section>
+    </main>
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="players.js"></script>
+    <script src="tasks.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
