@@ -39,6 +39,8 @@ with open(DB_PATH, "rb") as f:
 
 print(f"✅ Loaded FratDex database with {len(database)} people: {list(database.keys())}")
 
+THRESHOLD = 0.35  # cosine-similarity cutoff (lower for Pi camera quality)
+
 face_app = FaceAnalysis(name="buffalo_l")
 face_app.prepare(ctx_id=-1, det_size=(320, 320))
 
@@ -224,7 +226,7 @@ def scan():
         if not faces:
             set_overlay("No face", (0, 0, 255))
             return JSONResponse({"success": True, "player": "Unknown",
-                                 "reason": "No face detected"})
+                                 "score": 0.0, "reason": "No face detected"})
 
         face = max(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
         raw_name, score = recognize_person(face.embedding)

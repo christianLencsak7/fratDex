@@ -249,16 +249,18 @@ function setupCamera() {
       // Tell the Pi to grab the current frame and run InsightFace on it
       const response = await fetch(API_SCAN, { method: "POST" });
       const result   = await response.json();
+      const conf     = typeof result.score === "number" ? ` (${(result.score * 100).toFixed(0)}%)` : "";
 
       if (result.success && result.player && result.player !== "Unknown") {
         if (scanLabel) {
-          scanLabel.textContent = result.player.toUpperCase();
+          scanLabel.textContent = result.player.toUpperCase() + conf;
           scanLabel.classList.remove("blink");
         }
         localStorage.setItem("last-scanned-player", result.player);
       } else {
         if (scanLabel) {
-          scanLabel.textContent = "No Match";
+          const reason = result.reason || "No Match";
+          scanLabel.textContent = reason + conf;
           scanLabel.classList.remove("blink");
         }
       }
