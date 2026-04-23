@@ -175,13 +175,21 @@ function setupMenu() {
       if (camLabel) camLabel.style.display = "none";
 
       if (cameraCircle) {
-        if (lastScanImage) {
-          cameraCircle.style.background = `url(${lastScanImage}) center/cover no-repeat`;
-          cameraCircle.style.boxShadow  = `0 6px 0 ${p.colors ? p.colors[1] : "#41526d"}`;
-        } else if (p.colors) {
-          cameraCircle.style.background = `radial-gradient(circle, #f8f8f8 0 30%, ${p.colors[1]} 30% 42%, ${p.colors[0]} 42% 100%)`;
-          cameraCircle.style.boxShadow  = `inset 0 0 0 6px rgba(248, 247, 223, 0.2), 0 6px 0 ${p.colors[1]}`;
-        }
+        // Try to display the actual scan photo from the FastAPI server
+        const imgUrl = `${PI_HOST}/api/last-scan-image?t=${Date.now()}`;
+        const probe = new Image();
+        probe.onload = () => {
+          cameraCircle.style.background = `url('${imgUrl}') center/cover no-repeat`;
+          cameraCircle.style.boxShadow  = `inset 0 0 0 6px rgba(248,247,223,0.25), 0 6px 0 ${p.colors ? p.colors[1] : "#3a1870"}`;
+        };
+        probe.onerror = () => {
+          // Fallback: member colours if no image saved yet
+          if (p.colors) {
+            cameraCircle.style.background = `radial-gradient(circle, #f8f8f8 0 30%, ${p.colors[1]} 30% 42%, ${p.colors[0]} 42% 100%)`;
+            cameraCircle.style.boxShadow  = `inset 0 0 0 6px rgba(248,247,223,0.2), 0 6px 0 ${p.colors[1]}`;
+          }
+        };
+        probe.src = imgUrl;
       }
     }
   }
@@ -278,13 +286,8 @@ function setupDex() {
   const modeView   = document.getElementById("dex-mode-view");
   const gridView   = document.getElementById("dex-grid-view");
   const detailView = document.getElementById("dex-detail-view");
-
-  const grid          = document.getElementById("dex-grid");
-  const gridPrevBtn   = document.getElementById("dex-grid-prev");
-  const gridNextBtn   = document.getElementById("dex-grid-next");
-  const gridPageLabel = document.getElementById("dex-grid-page");
-
-  const dexCount     = document.getElementById("dex-count");
+  const grid       = document.getElementById("dex-grid");
+  const dexCount   = document.getElementById("dex-count");
   const dexGridCount = document.getElementById("dex-grid-count");
 
   const nameNode    = document.getElementById("detail-name");
@@ -296,58 +299,34 @@ function setupDex() {
   const indexLabel  = document.getElementById("detail-index-label");
   const statusBadge = document.getElementById("detail-status-badge");
 
-  // ── State ────────────────────────────────────────────────────
-  let view        = "mode";
-  const COLS      = 3;
-  const ROWS      = 3;
-  const PAGE_SIZE = COLS * ROWS;
-  let gridIndex   = 0;
-  let modeIndex   = 0;
+  // ── Filter mode definitions ───────────────────────────────────
+  const MODES = [
+    { id: "mode-all",   label: "ALL MEMBERS",   filter: () => true },
+    { id: "mode-ec",    label: "EXEC BOARD",    filter: p => EXEC_ROLES.includes(p.pos) },
+    { id: "mode-bro",   label: "BROTHERS",      filter: p => p.pos === "Brother" },
+    { id: "mode-sweet", label: "SWEETHEARTS",   filter: p => p.pos === "Sweetheart" },
+    { id: "mode-fac",   label: "FACULTY/STAFF", filter: p => ["Faculty Fellow","Resident Scholar","Chapter Counselor"].includes(p.pos) },
+  ];
+  const COLS = 3;
+  let view          = "mode";
+  let modeIndex     = 0;
   let activePlayers = [];
+  let gridIndex     = 0;
   let activeIndex   = 0;
 
-  function clampIndex(index, length) {
-    if (!length) return 0;
-    return Math.max(0, Math.min(length - 1, index));
-  }
-  function getPageCount(length) {
-    return Math.max(1, Math.ceil(length / PAGE_SIZE));
-  }
-  function getPageNumber(index, length) {
-    if (!length) return 0;
-    return Math.floor(clampIndex(index, length) / PAGE_SIZE) + 1;
-  }
-  function formatPagedBadge(collected, total, selectedIndex) {
-    const pageNumber = getPageNumber(selectedIndex, total);
-    const pageCount  = total ? getPageCount(total) : 0;
-    return `${collected}/${total} | P${pageNumber}/${pageCount}`;
-  }
-  function updatePager(labelNode, prevNode, nextNode, index, total) {
-    const pageNumber = getPageNumber(index, total);
-    const pageCount  = total ? getPageCount(total) : 0;
-    if (labelNode) labelNode.textContent = total ? `PAGE ${pageNumber} / ${pageCount}` : "PAGE 0 / 0";
-    if (prevNode) prevNode.disabled = !total || pageNumber <= 1;
-    if (nextNode) nextNode.disabled = !total || pageNumber >= pageCount;
+  // ── Helpers ───────────────────────────────────────────────────
+  function updateDexCount() {
+    const n = players.filter(p => p.collected).length;
+    if (dexCount) dexCount.textContent = `Collected ${n}/${players.length}`;
   }
 
-  function updateAllGridBadge() {
-    if (!dexGridCount) return;
-    const collected = players.filter((p) => p.collected).length;
-    dexGridCount.textContent = formatPagedBadge(collected, players.length, gridIndex);
-    updatePager(gridPageLabel, gridPrevBtn, gridNextBtn, gridIndex, players.length);
-  }
-
-  const collectedCount = players.filter((p) => p.collected).length;
-  if (dexCount) dexCount.textContent = `Collected ${collectedCount}/${players.length}`;
-
-  // ── Hide all views ───────────────────────────────────────────
   function hideAll() {
-    [modeView, gridView, detailView].forEach((v) => {
-      if (v) v.classList.add("dex-view--hidden");
-    });
+    [modeView, gridView, detailView].forEach(v => v?.classList.add("dex-view--hidden"));
   }
 
-  // ── MODE SELECT ──────────────────────────────────────────────
+  updateDexCount();
+
+  // ── MODE SELECT ───────────────────────────────────────────────
   function showMode() {
     view = "mode";
     hideAll();
@@ -356,100 +335,76 @@ function setupDex() {
   }
 
   function renderMode() {
-    const options = modeView.querySelectorAll(".mode-option");
-    options.forEach((opt, i) => opt.classList.toggle("is-selected", i === modeIndex));
+    modeView.querySelectorAll(".mode-option")
+      .forEach((opt, i) => opt.classList.toggle("is-selected", i === modeIndex));
   }
 
-  document.getElementById("mode-all")?.addEventListener("click", () => {
-    modeIndex = 0; openAllGrid();
+  MODES.forEach((m, i) => {
+    document.getElementById(m.id)?.addEventListener("click", () => openModeGrid(i));
   });
 
-  // ── ALL-MEMBERS GRID ─────────────────────────────────────────
-  function openAllGrid() {
-    view = "grid";
-    activePlayers = players;
-    gridIndex = clampIndex(gridIndex, activePlayers.length);
+  // ── GRID ──────────────────────────────────────────────────────
+  function openModeGrid(idx) {
+    modeIndex     = idx;
+    activePlayers = players.filter(MODES[idx].filter);
+    gridIndex     = 0;
+    view          = "grid";
     hideAll();
     gridView.classList.remove("dex-view--hidden");
-    updateAllGridBadge();
-    renderPlayerGrid(grid, activePlayers, gridIndex, (i) => {
-      gridIndex = i;
-      activeIndex = i;
-      showDetail("grid");
-    });
+    const hdr = gridView.querySelector(".status-bar span:first-child");
+    if (hdr) hdr.textContent = MODES[idx].label;
+    renderGrid();
   }
 
-  gridPrevBtn?.addEventListener("click", () => { if (view === "grid") changeGridPage(-1); });
-  gridNextBtn?.addEventListener("click", () => { if (view === "grid") changeGridPage(1); });
+  function renderGrid() {
+    grid.innerHTML = "";
+    const collected = activePlayers.filter(p => p.collected).length;
+    if (dexGridCount) dexGridCount.textContent = `${collected}/${activePlayers.length}`;
 
-  // ── SHARED GRID RENDER ───────────────────────────────────────
-  function renderPlayerGrid(container, playerList, selectedIndex, onSelect) {
-    container.innerHTML = "";
-    if (!playerList.length) {
-      container.innerHTML = '<div class="centered-copy">No members here.</div>';
+    if (!activePlayers.length) {
+      grid.innerHTML = '<div class="centered-copy">No members here.</div>';
       return;
     }
-    const safeIndex  = clampIndex(selectedIndex, playerList.length);
-    const pageStart  = Math.floor(safeIndex / PAGE_SIZE) * PAGE_SIZE;
-    const pagePlayers = playerList.slice(pageStart, pageStart + PAGE_SIZE);
 
-    pagePlayers.forEach((player, localIndex) => {
-      const globalIndex = pageStart + localIndex;
+    activePlayers.forEach((player, i) => {
       const tile = document.createElement("button");
-      tile.type = "button";
+      tile.type  = "button";
       tile.className = "dex-tile";
-      tile.classList.toggle("is-selected", globalIndex === safeIndex);
+      tile.classList.toggle("is-selected", i === gridIndex);
 
-      const spriteClass   = player.collected ? "sprite-collected" : "sprite-unknown";
-      const nameDisplay   = player.collected ? player.name : "???";
-      const chapterDisplay = player.collected ? player.team : "???";
+      const spriteClass = player.collected ? "sprite-collected" : "sprite-unknown";
+      const nameDisplay = player.collected ? player.name : "???";
+      const roleDisplay = player.collected ? player.pos  : "???";
 
       tile.innerHTML = `
         <div class="tile-sprite ${spriteClass}" aria-hidden="true"></div>
         <div class="tile-name">${nameDisplay}</div>
-        <div class="tile-team">${chapterDisplay}</div>
+        <div class="tile-team">${roleDisplay}</div>
       `;
-      tile.addEventListener("click", () => onSelect(globalIndex));
-      container.appendChild(tile);
+      tile.addEventListener("click", () => {
+        gridIndex   = i;
+        activeIndex = i;
+        showDetail();
+      });
+      grid.appendChild(tile);
     });
 
-    for (let i = pagePlayers.length; i < PAGE_SIZE; i++) {
-      const filler = document.createElement("div");
-      filler.className = "dex-tile dex-tile--empty";
-      filler.setAttribute("aria-hidden", "true");
-      container.appendChild(filler);
-    }
+    // Scroll selected tile into view
+    const sel = grid.children[gridIndex];
+    if (sel) sel.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }
 
-  function stepPage(index, length, delta) {
-    if (!length) return 0;
-    const slot        = clampIndex(index, length) % PAGE_SIZE;
-    const currentPage = Math.floor(clampIndex(index, length) / PAGE_SIZE);
-    const nextPage    = Math.max(0, Math.min(getPageCount(length) - 1, currentPage + delta));
-    return Math.min(length - 1, nextPage * PAGE_SIZE + slot);
-  }
-
-  function changeGridPage(delta) {
-    gridIndex = stepPage(gridIndex, activePlayers.length, delta);
-    updateAllGridBadge();
-    renderPlayerGrid(grid, activePlayers, gridIndex, (i) => {
-      gridIndex = i; activeIndex = i; showDetail("grid");
-    });
-  }
-
-  // ── DETAIL VIEW ──────────────────────────────────────────────
-  function showDetail(fromView) {
+  // ── DETAIL ────────────────────────────────────────────────────
+  function showDetail() {
     view = "detail";
     hideAll();
     detailView.classList.remove("dex-view--hidden");
-    renderDetail(fromView);
+    renderDetail();
   }
 
-  function renderDetail(fromView) {
+  function renderDetail() {
     const player = activePlayers[activeIndex];
-    const total  = activePlayers.length;
-
-    if (indexLabel) indexLabel.textContent = `${activeIndex + 1} / ${total}`;
+    if (indexLabel) indexLabel.textContent = `${activeIndex + 1} / ${activePlayers.length}`;
 
     if (!player) {
       spriteBox.className = "detail-sprite sprite-unknown";
@@ -474,10 +429,7 @@ function setupDex() {
         player.stats.forEach(([label, value]) => {
           const row = document.createElement("div");
           row.className = "stat-row";
-          row.innerHTML = `
-            <span>${label} ${value}</span>
-            <div class="stat-bar" style="--bar-fill:${value}%;"><span></span></div>
-          `;
+          row.innerHTML = `<span>${label} ${value}</span><div class="stat-bar" style="--bar-fill:${value}%;"><span></span></div>`;
           statsNode.appendChild(row);
         });
       }
@@ -492,7 +444,7 @@ function setupDex() {
     }
   }
 
-  // ── PROFILE GRID BUILDER ─────────────────────────────────────
+  // ── PROFILE GRID ─────────────────────────────────────────────
   function buildProfileGrid(player) {
     if (!player) {
       return `<div class="profile-grid profile-grid--locked">
@@ -518,14 +470,16 @@ function setupDex() {
 
     if (view === "mode") {
       if (key === "Escape" || key === "Backspace") { event.preventDefault(); goHome(); return; }
-      if (key === "Enter") { event.preventDefault(); openAllGrid(); return; }
+      const dir = getDirection(event);
+      if (dir === "up")   { event.preventDefault(); modeIndex = (modeIndex - 1 + MODES.length) % MODES.length; renderMode(); }
+      if (dir === "down") { event.preventDefault(); modeIndex = (modeIndex + 1) % MODES.length; renderMode(); }
+      if (key === "Enter") { event.preventDefault(); openModeGrid(modeIndex); }
+      return;
     }
 
     if (view === "grid") {
       if (key === "Escape" || key === "Backspace") { event.preventDefault(); showMode(); return; }
-      if (key === "PageUp"   || key === "q" || key === "Q") { event.preventDefault(); changeGridPage(-1); return; }
-      if (key === "PageDown" || key === "e" || key === "E") { event.preventDefault(); changeGridPage(1);  return; }
-      if (key === "Enter") { event.preventDefault(); activeIndex = gridIndex; showDetail("grid"); return; }
+      if (key === "Enter") { event.preventDefault(); activeIndex = gridIndex; showDetail(); return; }
       const dir = getDirection(event);
       if (!dir) return;
       event.preventDefault();
@@ -533,8 +487,7 @@ function setupDex() {
       if (dir === "down")  gridIndex = Math.min(activePlayers.length - 1, gridIndex + COLS);
       if (dir === "left")  gridIndex = Math.max(0, gridIndex - 1);
       if (dir === "right") gridIndex = Math.min(activePlayers.length - 1, gridIndex + 1);
-      updateAllGridBadge();
-      renderPlayerGrid(grid, activePlayers, gridIndex, (i) => { gridIndex = i; activeIndex = i; showDetail("grid"); });
+      renderGrid();
       return;
     }
 
@@ -543,41 +496,26 @@ function setupDex() {
         event.preventDefault();
         view = "grid";
         hideAll();
-        updateAllGridBadge();
-        renderPlayerGrid(grid, activePlayers, gridIndex, (i) => { gridIndex = i; activeIndex = i; showDetail("grid"); });
         gridView.classList.remove("dex-view--hidden");
+        renderGrid();
         return;
       }
       const dir = getDirection(event);
-      if (dir === "left") {
-        event.preventDefault();
-        activeIndex = Math.max(0, activeIndex - 1);
-        gridIndex = activeIndex;
-        renderDetail("grid");
-      } else if (dir === "right") {
-        event.preventDefault();
-        activeIndex = Math.min(activePlayers.length - 1, activeIndex + 1);
-        gridIndex = activeIndex;
-        renderDetail("grid");
-      }
+      if (dir === "left")  { event.preventDefault(); activeIndex = Math.max(0, activeIndex - 1); gridIndex = activeIndex; renderDetail(); }
+      if (dir === "right") { event.preventDefault(); activeIndex = Math.min(activePlayers.length - 1, activeIndex + 1); gridIndex = activeIndex; renderDetail(); }
     }
   });
 
-  // ── LIVE UPDATE ──────────────────────────────────────────────
+  // ── LIVE UPDATE (on state change from syncState) ──────────────
   window.addEventListener("fratdex:statechange", () => {
-    const collectedCount = players.filter((p) => p.collected).length;
-    if (dexCount) dexCount.textContent = `Collected ${collectedCount}/${players.length}`;
-    updateAllGridBadge();
-
-    if (view === "grid") {
-      renderPlayerGrid(grid, activePlayers, gridIndex, (i) => { gridIndex = i; activeIndex = i; showDetail("grid"); });
-    } else if (view === "detail") {
-      renderDetail("grid");
-    }
+    updateDexCount();
+    if (view === "grid")   renderGrid();
+    else if (view === "detail") renderDetail();
   });
 
   showMode();
 }
+
 
 // ─── Tasks ───────────────────────────────────────────────────────
 function setupTasks() {

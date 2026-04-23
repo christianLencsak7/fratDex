@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FratDex | Database</title>
+    <title>FratDex | SigEp NJ Alpha</title>
     <meta name="description" content="Browse your collected frat members." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -12,12 +12,29 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="styles.css" />
+    <style>
+      /* Scrollable grid shell — no pager needed */
+      .dex-grid-shell {
+        height: 100%;
+        overflow-y: auto;
+        overflow-x: hidden;
+      }
+      .dex-grid-shell::-webkit-scrollbar { width: 4px; }
+      .dex-grid-shell::-webkit-scrollbar-thumb { background: #6a4a90; border-radius: 2px; }
+      .dex-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 4px;
+        padding-bottom: 8px;
+      }
+      .dex-tile { height: 88px; }
+    </style>
   </head>
   <body data-page="dex">
     <main class="console">
       <section class="screen">
 
-        <!-- ── MODE SELECT (entry popup) ────────────────────── -->
+        <!-- ── MODE SELECT ──────────────────────────────────────── -->
         <div id="dex-mode-view" class="dex-view">
           <header class="status-bar dex-status-bar">
             <span>FRATDEX</span>
@@ -25,31 +42,30 @@
           </header>
           <div class="page-content page-content-dex mode-select-wrap">
             <div class="mode-dialog">
-              <div class="mode-dialog-title">SEARCH</div>
-              <button id="mode-all" class="mode-option">ALL MEMBERS</button>
+              <div class="mode-dialog-title">BROWSE</div>
+              <button id="mode-all"   class="mode-option">ALL MEMBERS</button>
+              <button id="mode-ec"    class="mode-option">EXEC BOARD</button>
+              <button id="mode-bro"   class="mode-option">BROTHERS</button>
+              <button id="mode-sweet" class="mode-option">SWEETHEARTS</button>
+              <button id="mode-fac"   class="mode-option">FACULTY/STAFF</button>
             </div>
           </div>
         </div>
 
-        <!-- ── ALL-MEMBERS GRID ──────────────────────────────── -->
+        <!-- ── SCROLLABLE GRID ──────────────────────────────────── -->
         <div id="dex-grid-view" class="dex-view dex-view--hidden">
           <header class="status-bar dex-status-bar">
-            <span>ALL MEMBERS</span>
+            <span id="dex-grid-header">ALL MEMBERS</span>
             <span id="dex-grid-count" class="task-count-badge">0/0</span>
           </header>
           <div class="page-content page-content-dex">
             <div class="dex-grid-shell">
               <div id="dex-grid" class="dex-grid" aria-label="Member grid"></div>
-              <div class="dex-pager" aria-label="Member pages">
-                <button id="dex-grid-prev" class="pager-button" type="button">PREV</button>
-                <div id="dex-grid-page" class="pager-label">PAGE 1 / 1</div>
-                <button id="dex-grid-next" class="pager-button" type="button">NEXT</button>
-              </div>
             </div>
           </div>
         </div>
 
-        <!-- ── DETAIL VIEW ───────────────────────────────────── -->
+        <!-- ── DETAIL VIEW ──────────────────────────────────────── -->
         <div id="dex-detail-view" class="dex-view dex-view--hidden">
           <header class="status-bar dex-status-bar">
             <span id="detail-index-label">1 / 0</span>
@@ -72,7 +88,6 @@
       </section>
     </main>
 
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="players.js"></script>
     <script src="tasks.js"></script>
     <script src="app.js"></script>

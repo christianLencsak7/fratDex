@@ -32,6 +32,7 @@ from insightface.app import FaceAnalysis
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH    = os.path.join(SCRIPT_DIR, "pokedex_database.pkl")
 STATE_FILE = os.path.join(SCRIPT_DIR, "state.json")
+LAST_SCAN_IMAGE = os.path.join(SCRIPT_DIR, "last_scan.jpg")
 
 with open(DB_PATH, "rb") as f:
     database = pickle.load(f)
@@ -41,7 +42,21 @@ print(f"✅ Loaded FratDex database with {len(database)} people: {list(database.
 face_app = FaceAnalysis(name="buffalo_l")
 face_app.prepare(ctx_id=-1, det_size=(320, 320))
 
-THRESHOLD = 0.45   # cosine similarity cutoff — tuned for personal faces
+# Maps raw database folder key → display name matching players.js
+NAME_MAP = {
+    "christianLencsak":   "Christian Lencsak",
+    "Christian Lencsak":  "Christian Lencsak",
+    "emilyPrasad":        "Emily Prasad",
+    "Emily Prasad":       "Emily Prasad",
+    "ryanCollier":        "Ryan Collier",
+    "Ryan Collier":       "Ryan Collier",
+    "samFerro":           "Samuel Ferro",
+    "Sam Ferro":          "Samuel Ferro",
+    "Samuel Ferro":       "Samuel Ferro",
+    "zumrutAkcamKibis":   "Zumrut Akcam-Kibis",
+    "Zumrut Akcam-Kibis": "Zumrut Akcam-Kibis",
+    "Zumrut Akcam Kibis": "Zumrut Akcam-Kibis",
+}
 
 # ─── State helpers ─────────────────────────────────────────────────────────────
 
@@ -92,13 +107,15 @@ async def generate_frames():
     loop = asyncio.get_event_loop()
     try:
         while True:
-            # run_in_executor makes cap.read() non-blocking to the event loop
             success, frame = await loop.run_in_executor(None, cap.read)
             if not success or frame is None:
                 await asyncio.sleep(0.05)
                 continue
 
-            # Draw overlay text
+            # Flip horizontally — acts as a natural mirror.
+            # Text is drawn AFTER flipping so it appears readable (not backwards).
+            frame = cv2.flip(frame, 1)
+
             with _lock:
                 text  = _overlay_text if time.time() < _overlay_until else ""
                 color = _overlay_color
@@ -109,7 +126,6 @@ async def generate_frames():
                 cv2.putText(frame, text, (30, 60),
                             cv2.FONT_HERSHEY_SIMPLEX, 1.8, color, 4)
 
-            # Scan reticle
             h, w = frame.shape[:2]
             rx, ry, rs = w // 2, h // 2, 80
             cv2.rectangle(frame, (rx - rs, ry - rs), (rx + rs, ry + rs), (255, 247, 223), 2)
@@ -122,7 +138,7 @@ async def generate_frames():
                 + b"\r\n"
             )
     except asyncio.CancelledError:
-        pass  # clean cancellation — no zombie thread
+        pass
 
 # ─── FastAPI lifespan (startup + shutdown hooks) ───────────────────────────────
 
@@ -168,13 +184,14 @@ def get_database():
 @app.post("/api/scan")
 def scan():
     """
-    Grab the current camera frame, run InsightFace recognition,
-    update state.json if a new member is found, and return the result.
-    Called from the frontend when the user taps SCAN.
+    Grab current frame, run InsightFace, update state.json, return result.
     """
     success, frame = cap.read()
     if not success:
         return JSONResponse({"success": False, "error": "Camera read failed"}, status_code=500)
+
+    # Flip to match the stream so the saved face photo matches what the user sees
+    frame = cv2.flip(frame, 1)
 
     faces = face_app.get(frame)
 
@@ -182,11 +199,16 @@ def scan():
         set_overlay("No face", (0, 0, 255))
         return JSONResponse({"success": True, "player": "Unknown", "reason": "No face detected"})
 
-    # Use the largest detected face
     face = max(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
-    name, score = recognize_person(face.embedding)
+    raw_name, score = recognize_person(face.embedding)
 
-    print(f"[Scan] Best match: {name} ({score:.3f})")
+    # Convert database key → display name (e.g. "christianLencsak" → "Christian Lencsak")
+    name = NAME_MAP.get(raw_name, raw_name)
+
+    print(f"[Scan] {raw_name} → {name} ({score:.3f})")
+
+    # Save the captured frame as the last-scan photo
+    cv2.imwrite(LAST_SCAN_IMAGE, frame)
 
     if name != "Unknown":
         state = load_state()
@@ -217,6 +239,15 @@ def reset_state():
     empty = {"collected": []}
     save_state(empty)
     return JSONResponse({"success": True})
+
+
+@app.get("/api/last-scan-image")
+def last_scan_image():
+    """Returns the JPEG of the last successfully scanned face."""
+    from fastapi.responses import FileResponse
+    if not os.path.exists(LAST_SCAN_IMAGE):
+        return JSONResponse({"error": "No scan yet"}, status_code=404)
+    return FileResponse(LAST_SCAN_IMAGE, media_type="image/jpeg")
 
 
 @app.get("/health")

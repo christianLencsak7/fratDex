@@ -12,15 +12,14 @@
     />
     <link rel="stylesheet" href="styles.css" />
     <style>
-      /* Override: the MJPEG img fills the camera slot just like the video did */
+      /* The Pi flips the frame server-side (cv2.flip) before drawing text,
+         so no CSS transform needed here. Text stays readable. */
       .mjpeg-feed {
         position: absolute;
         inset: 0;
         width: 100%;
         height: 100%;
         object-fit: cover;
-        /* Mirror so it feels natural when facing the user */
-        transform: scaleX(-1);
       }
     </style>
   </head>
