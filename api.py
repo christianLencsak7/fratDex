@@ -275,6 +275,24 @@ def last_scan_image():
     return FileResponse(LAST_SCAN_IMAGE, media_type="image/jpeg")
 
 
+@app.get("/api/health")
+def api_health():
+    """
+    Readiness probe used by launch-kiosk.sh.
+    Returns 200 only when InsightFace is loaded AND the camera has a first frame.
+    Returns 503 while still starting up.
+    """
+    with _frame_lock:
+        ready = _latest_frame is not None
+    if not ready:
+        return JSONResponse(
+            {"status": "starting", "detail": "Camera not ready yet"},
+            status_code=503
+        )
+    return JSONResponse({"status": "ok", "db_size": len(database), "camera": "ready"})
+
+
 @app.get("/health")
 def health():
+    """Simple liveness alias — always 200 if uvicorn is up."""
     return {"status": "ok", "db_size": len(database)}
