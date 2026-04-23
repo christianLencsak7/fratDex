@@ -16,6 +16,8 @@ Run:
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
+import asyncio
 import cv2
 import numpy as np
 import pickle
@@ -66,16 +68,13 @@ def recognize_person(embedding) -> tuple[str, float]:
         return best_match, best_score
     return "Unknown", best_score
 
-# ─── Camera (initialized once at startup) ─────────────────────────────────────
+# ─── Camera (managed via lifespan — released cleanly on shutdown) ────────────
 
-cap = cv2.VideoCapture(0)  # change to 1 for external USB webcam
-if not cap.isOpened():
-    raise RuntimeError("❌ Could not open camera. Check index (0 or 1).")
-print("📷 Camera ready.")
+cap = None  # initialized in lifespan()
 
-# Shared state for the overlay label shown on the stream
-_lock         = threading.Lock()
-_overlay_text = ""
+# Shared overlay state for the MJPEG stream
+_lock          = threading.Lock()
+_overlay_text  = ""
 _overlay_color = (0, 255, 0)
 _overlay_until = 0.0
 
@@ -86,44 +85,61 @@ def set_overlay(text: str, color=(0, 255, 0), duration=4.0):
         _overlay_color = color
         _overlay_until = time.time() + duration
 
-# ─── MJPEG frame generator ────────────────────────────────────────────────────
+# ─── Async MJPEG frame generator (non-blocking, cancellable) ──────────────────
 
-def generate_frames():
-    """Yields MJPEG boundary frames for /video_feed."""
-    while True:
-        success, frame = cap.read()
-        if not success:
-            break
+async def generate_frames():
+    """Async generator — yields MJPEG frames. Cancels cleanly on shutdown."""
+    loop = asyncio.get_event_loop()
+    try:
+        while True:
+            # run_in_executor makes cap.read() non-blocking to the event loop
+            success, frame = await loop.run_in_executor(None, cap.read)
+            if not success or frame is None:
+                await asyncio.sleep(0.05)
+                continue
 
-        # Draw overlay text on the frame
-        with _lock:
-            text  = _overlay_text  if time.time() < _overlay_until else ""
-            color = _overlay_color
+            # Draw overlay text
+            with _lock:
+                text  = _overlay_text if time.time() < _overlay_until else ""
+                color = _overlay_color
 
-        if text:
-            # Retro-style label: dark shadow + bright text
-            cv2.putText(frame, text, (28, 62),
-                        cv2.FONT_HERSHEY_SIMPLEX, 1.8, (0, 0, 0), 6)
-            cv2.putText(frame, text, (30, 60),
-                        cv2.FONT_HERSHEY_SIMPLEX, 1.8, color, 4)
+            if text:
+                cv2.putText(frame, text, (28, 62),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1.8, (0, 0, 0), 6)
+                cv2.putText(frame, text, (30, 60),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1.8, color, 4)
 
-        # Draw a scan reticle in the centre
-        h, w = frame.shape[:2]
-        rx, ry, rs = w // 2, h // 2, 80
-        cv2.rectangle(frame, (rx - rs, ry - rs), (rx + rs, ry + rs), (255, 247, 223), 2)
+            # Scan reticle
+            h, w = frame.shape[:2]
+            rx, ry, rs = w // 2, h // 2, 80
+            cv2.rectangle(frame, (rx - rs, ry - rs), (rx + rs, ry + rs), (255, 247, 223), 2)
 
-        # Encode to JPEG
-        _, buffer = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 75])
-        yield (
-            b"--frame\r\n"
-            b"Content-Type: image/jpeg\r\n\r\n"
-            + buffer.tobytes()
-            + b"\r\n"
-        )
+            _, buffer = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 75])
+            yield (
+                b"--frame\r\n"
+                b"Content-Type: image/jpeg\r\n\r\n"
+                + buffer.tobytes()
+                + b"\r\n"
+            )
+    except asyncio.CancelledError:
+        pass  # clean cancellation — no zombie thread
 
-# ─── FastAPI app ──────────────────────────────────────────────────────────────
+# ─── FastAPI lifespan (startup + shutdown hooks) ───────────────────────────────
 
-app = FastAPI(title="FratDex API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global cap
+    cap = cv2.VideoCapture(0)  # change to 1 for external USB webcam
+    if not cap.isOpened():
+        raise RuntimeError("❌ Could not open camera. Try VideoCapture(1).")
+    print("📷 Camera ready.")
+    yield  # ←── server runs here
+    cap.release()
+    print("📷 Camera released cleanly.")
+
+# ─── FastAPI app ───────────────────────────────────────────────────────────────
+
+app = FastAPI(title="FratDex API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
