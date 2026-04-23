@@ -27,7 +27,7 @@ body {
   min-height: 100vh;
   margin: 0;
   padding: 0;
-  display: flex;
+  display: block;
   justify-content: center;
   align-items: center;
   background: var(--bg-dark);
@@ -53,25 +53,51 @@ button {
   cursor: pointer;
 }
 
-/* ─── Console shell ──────────────────────────────────────────── */
+/* ─── Virtual Pokedex Shell ────────────────────────────────── */
 .console {
-  width: 800px;
-  height: 480px;
-  padding: 0;
-  border: none;
+  width: 100vw;
+  height: 100vh;
+  padding: 12px; /* Shell bezel thickness */
   background: var(--shell-purple);
-  box-shadow: none;
-  overflow: hidden;
   position: relative;
+  display: flex;
+  overflow: hidden;
+  
+  /* Simulate the plastic handheld texture */
+  box-shadow: 
+    inset 0 0 40px rgba(0,0,0,0.3),
+    inset 8px 8px 0 rgba(255,255,255,0.1),
+    inset -8px -8px 0 rgba(0,0,0,0.2);
 }
 
-.screen {
+/* Corner Screws */
+.console::before,
+.console::after {
+  content: "";
   position: absolute;
-  inset: 0;
+  width: 14px;
+  height: 14px;
+  background: #2a1050;
+  border: 3px solid #11151d;
+  box-shadow: inset 2px 2px 0 rgba(255,255,255,0.3);
+  z-index: 50;
+}
+.console::before { top: 8px; left: 8px; }
+.console::after { bottom: 8px; right: 8px; }
+
+/* Secondary Screws */
+.screw-tl { position: absolute; top: 8px; right: 8px; width: 14px; height: 14px; background: #2a1050; border: 3px solid #11151d; z-index: 50; box-shadow: inset 2px 2px 0 rgba(255,255,255,0.3); }
+.screw-bl { position: absolute; bottom: 8px; left: 8px; width: 14px; height: 14px; background: #2a1050; border: 3px solid #11151d; z-index: 50; box-shadow: inset 2px 2px 0 rgba(255,255,255,0.3); }
+
+.screen {
+  position: relative;
+  flex: 1;
   width: 100%;
   height: 100%;
   overflow: hidden;
+  border: 8px solid #11151d; /* Inside bezel */
   background: var(--cream);
+  box-shadow: inset 0 0 15px rgba(0,0,0,0.15);
 }
 
 .screen::before {
@@ -87,7 +113,7 @@ button {
   z-index: 0;
 }
 
-/* ─── Status bar (always fixed at top of screen) ─────────────── */
+/* ─── Status bar ─────────────────────────────────────────────── */
 .status-bar {
   position: absolute;
   top: 0;
@@ -97,13 +123,29 @@ button {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 16px;
+  padding: 8px 16px 8px 60px; /* Offset for LEDs */
   background: #1a0a2e;
   color: #f8f5e8;
   text-transform: uppercase;
   letter-spacing: 1px;
   font-size: 14px;
   border-bottom: 4px solid #080318;
+}
+
+/* Pokedex LEDs */
+.status-bar::before {
+  content: "";
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40px;
+  height: 14px;
+  background: 
+    radial-gradient(circle at 7px center, #41a6f6 0 5px, transparent 6px),
+    radial-gradient(circle at 20px center, #ff4b4b 0 5px, transparent 6px),
+    radial-gradient(circle at 33px center, #ffde4b 0 5px, transparent 6px);
+  filter: drop-shadow(0 0 4px rgba(255,255,255,0.4));
 }
 
 /* Slim variant for dex */
@@ -199,9 +241,10 @@ button {
 /* ─── Menu layout ────────────────────────────────────────────── */
 .menu-layout {
   display: grid;
-  grid-template-columns: 60% 40%;
-  gap: 8px;
+  grid-template-columns: 55% 45%;
+  gap: 16px;
   height: 100%;
+  padding: 12px;
 }
 
 .take-pic-card {
@@ -293,10 +336,22 @@ button {
 }
 
 .last-scan-meta {
-  font-size: 6px;
+  font-size: 10px;
   color: #c5d5e8;
   text-shadow: 1px 1px 0 #182033;
   line-height: 1.4;
+}
+
+/* Speaker Grill Decoration */
+.console::after {
+  content: "";
+  position: absolute;
+  bottom: 24px;
+  left: 30px;
+  width: 40px;
+  height: 20px;
+  background: repeating-linear-gradient(90deg, #11151d 0 3px, transparent 3px 6px);
+  opacity: 0.3;
 }
 
 /* ─── Camera fullscreen ──────────────────────────────────────── */
