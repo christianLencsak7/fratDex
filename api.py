@@ -85,38 +85,56 @@ def recognize_person(embedding) -> tuple[str, float]:
 
 # ─── Camera (managed via lifespan — released cleanly on shutdown) ────────────
 
-cap = None  # initialized in lifespan()
+cap         = None   # OpenCV VideoCapture, opened in lifespan()
+_latest_frame = None  # most recent decoded frame (BGR, already flipped)
+_frame_lock   = threading.Lock()
 
-# Shared overlay state for the MJPEG stream
-_lock          = threading.Lock()
+# Overlay state for the MJPEG stream
+_overlay_lock  = threading.Lock()
 _overlay_text  = ""
 _overlay_color = (0, 255, 0)
 _overlay_until = 0.0
 
 def set_overlay(text: str, color=(0, 255, 0), duration=4.0):
     global _overlay_text, _overlay_color, _overlay_until
-    with _lock:
+    with _overlay_lock:
         _overlay_text  = text
         _overlay_color = color
         _overlay_until = time.time() + duration
 
-# ─── Async MJPEG frame generator (non-blocking, cancellable) ──────────────────
+def _camera_reader():
+    """Background thread: continuously grabs frames into _latest_frame.
+    By having ONE thread own all cap.read() calls we avoid race conditions
+    when the MJPEG stream and the scan endpoint both need a frame."""
+    global _latest_frame
+    while True:
+        if cap is None or not cap.isOpened():
+            time.sleep(0.05)
+            continue
+        success, frame = cap.read()
+        if success and frame is not None:
+            frame = cv2.flip(frame, 1)   # flip once here for every consumer
+            with _frame_lock:
+                _latest_frame = frame
+        else:
+            time.sleep(0.02)
+
+# ─── Async MJPEG frame generator ──────────────────────────────────────────────
 
 async def generate_frames():
-    """Async generator — yields MJPEG frames. Cancels cleanly on shutdown."""
-    loop = asyncio.get_event_loop()
+    """Async generator: reads from the shared _latest_frame buffer."""
     try:
         while True:
-            success, frame = await loop.run_in_executor(None, cap.read)
-            if not success or frame is None:
+            with _frame_lock:
+                raw = _latest_frame
+
+            if raw is None:
                 await asyncio.sleep(0.05)
                 continue
 
-            # Flip horizontally — acts as a natural mirror.
-            # Text is drawn AFTER flipping so it appears readable (not backwards).
-            frame = cv2.flip(frame, 1)
+            frame = raw.copy()   # don't mutate the shared buffer
 
-            with _lock:
+            with _overlay_lock:
                 text  = _overlay_text if time.time() < _overlay_until else ""
                 color = _overlay_color
 
@@ -128,7 +146,8 @@ async def generate_frames():
 
             h, w = frame.shape[:2]
             rx, ry, rs = w // 2, h // 2, 80
-            cv2.rectangle(frame, (rx - rs, ry - rs), (rx + rs, ry + rs), (255, 247, 223), 2)
+            cv2.rectangle(frame, (rx - rs, ry - rs), (rx + rs, ry + rs),
+                          (255, 247, 223), 2)
 
             _, buffer = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 75])
             yield (
@@ -137,19 +156,23 @@ async def generate_frames():
                 + buffer.tobytes()
                 + b"\r\n"
             )
+            await asyncio.sleep(0.03)   # ~30 fps cap — reduces CPU load on Pi
     except asyncio.CancelledError:
         pass
 
-# ─── FastAPI lifespan (startup + shutdown hooks) ───────────────────────────────
+# ─── FastAPI lifespan (startup + shutdown hooks) ──────────────────────────────
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global cap
-    cap = cv2.VideoCapture(0)  # change to 1 for external USB webcam
+    cap = cv2.VideoCapture(0)   # change to 1 for external USB webcam
     if not cap.isOpened():
         raise RuntimeError("❌ Could not open camera. Try VideoCapture(1).")
-    print("📷 Camera ready.")
-    yield  # ←── server runs here
+    # Start the single background reader thread
+    t = threading.Thread(target=_camera_reader, daemon=True)
+    t.start()
+    print("📷 Camera ready (background reader started).")
+    yield   # ←── server runs here
     cap.release()
     print("📷 Camera released cleanly.")
 
@@ -184,14 +207,16 @@ def get_database():
 @app.post("/api/scan")
 def scan():
     """
-    Grab current frame, run InsightFace, update state.json, return result.
+    Grab the latest camera frame (already flipped by background thread),
+    run InsightFace, update state.json, return result.
     """
-    success, frame = cap.read()
-    if not success:
-        return JSONResponse({"success": False, "error": "Camera read failed"}, status_code=500)
+    with _frame_lock:
+        frame = _latest_frame.copy() if _latest_frame is not None else None
 
-    # Flip to match the stream so the saved face photo matches what the user sees
-    frame = cv2.flip(frame, 1)
+    if frame is None:
+        return JSONResponse({"success": False, "error": "No frame available yet"}, status_code=503)
+
+    # Frame is already flipped — background thread handles that
 
     faces = face_app.get(frame)
 
