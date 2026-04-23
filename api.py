@@ -209,49 +209,61 @@ def scan():
     """
     Grab the latest camera frame (already flipped by background thread),
     run InsightFace, update state.json, return result.
+    Always returns valid JSON — never lets an exception bubble up as HTML.
     """
-    with _frame_lock:
-        frame = _latest_frame.copy() if _latest_frame is not None else None
+    try:
+        with _frame_lock:
+            frame = _latest_frame.copy() if _latest_frame is not None else None
 
-    if frame is None:
-        return JSONResponse({"success": False, "error": "No frame available yet"}, status_code=503)
+        if frame is None:
+            return JSONResponse({"success": False, "player": "Unknown",
+                                 "error": "Camera not ready"}, status_code=503)
 
-    # Frame is already flipped — background thread handles that
+        faces = face_app.get(frame)
 
-    faces = face_app.get(frame)
+        if not faces:
+            set_overlay("No face", (0, 0, 255))
+            return JSONResponse({"success": True, "player": "Unknown",
+                                 "reason": "No face detected"})
 
-    if not faces:
-        set_overlay("No face", (0, 0, 255))
-        return JSONResponse({"success": True, "player": "Unknown", "reason": "No face detected"})
+        face = max(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
+        raw_name, score = recognize_person(face.embedding)
+        name = NAME_MAP.get(raw_name, raw_name)
 
-    face = max(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
-    raw_name, score = recognize_person(face.embedding)
+        print(f"[Scan] {raw_name} → {name} ({score:.3f})")
 
-    # Convert database key → display name (e.g. "christianLencsak" → "Christian Lencsak")
-    name = NAME_MAP.get(raw_name, raw_name)
+        # Save frame as last-scan photo (best effort — don't crash if write fails)
+        try:
+            cv2.imwrite(LAST_SCAN_IMAGE, frame)
+        except Exception as img_err:
+            print(f"[Scan] Warning: could not save last_scan.jpg: {img_err}")
 
-    print(f"[Scan] {raw_name} → {name} ({score:.3f})")
+        if name != "Unknown":
+            state = load_state()
+            already = name in state["collected"]
+            if not already:
+                state["collected"].append(name)
+                save_state(state)
+            set_overlay(name, (80, 255, 80))
+            return JSONResponse({
+                "success":         True,
+                "player":          name,
+                "score":           round(score, 3),
+                "newly_collected": not already,
+                "total_collected": len(state["collected"]),
+            })
+        else:
+            set_overlay("Unknown", (0, 0, 255))
+            return JSONResponse({"success": True, "player": "Unknown",
+                                 "score": round(score, 3)})
 
-    # Save the captured frame as the last-scan photo
-    cv2.imwrite(LAST_SCAN_IMAGE, frame)
-
-    if name != "Unknown":
-        state = load_state()
-        already = name in state["collected"]
-        if not already:
-            state["collected"].append(name)
-            save_state(state)
-        set_overlay(name, (80, 255, 80))
-        return JSONResponse({
-            "success":         True,
-            "player":          name,
-            "score":           round(score, 3),
-            "newly_collected": not already,
-            "total_collected": len(state["collected"]),
-        })
-    else:
-        set_overlay("Unknown", (0, 0, 255))
-        return JSONResponse({"success": True, "player": "Unknown", "score": round(score, 3)})
+    except Exception as e:
+        # Log the full error so we can debug via journalctl
+        print(f"[Scan] ERROR: {type(e).__name__}: {e}")
+        import traceback; traceback.print_exc()
+        # Always return valid JSON so the browser shows "No Match" not "Server Offline"
+        return JSONResponse({"success": False, "player": "Unknown",
+                             "error": str(e)}, status_code=500)
 
 
 @app.get("/api/state")
