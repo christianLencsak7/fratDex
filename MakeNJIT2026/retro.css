@@ -24,7 +24,7 @@ body {
   min-height: 100vh;
   display: grid;
   place-items: center;
-  padding: 16px;
+  padding: 0;
   background: radial-gradient(circle at top, #7f8fb4 0%, #4b587d 35%, #232a40 100%);
   color: var(--ink);
   font-family: "Press Start 2P", monospace;
@@ -48,8 +48,8 @@ button {
 }
 
 .console {
-  width: 480px;
-  height: 320px;
+  width: 100vw;
+  height: 100vh;
   padding: 12px;
   border: 6px solid var(--shadow);
   background: linear-gradient(145deg, #e85f5f 0%, var(--shell-red) 55%, #c84444 100%);
