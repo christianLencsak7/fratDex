@@ -22,8 +22,16 @@ import os
 import base64
 import numpy as np
 import cv2
+import threading
+import time
 
-# ─── Load face recognition model ────────────────────────────────────────────
+try:
+    import serial
+    import serial.tools.list_ports
+    SERIAL_AVAILABLE = True
+except ImportError:
+    SERIAL_AVAILABLE = False
+
 try:
     from insightface.app import FaceAnalysis
     import pickle
@@ -214,8 +222,62 @@ def on_disconnect():
     print("Browser disconnected")
 
 
+# ─── Arduino Serial Bridge ───────────────────────────────────────────────────
+
+def arduino_serial_loop():
+    """Background thread to read inputs from the Arduino controller via USB."""
+    if not SERIAL_AVAILABLE:
+        print("[Arduino] pyserial not found. Run 'pip install pyserial'.")
+        return
+
+    arduino = None
+    print("[Arduino] Searching for controller...")
+
+    while True:
+        if arduino is None:
+            ports = list(serial.tools.list_ports.comports())
+            target_port = None
+            for p in ports:
+                # Common identifiers for Arduino/Serial boards
+                if any(x in p.description or x in p.device for x in ["Arduino", "ttyACM", "ttyUSB", "USB Serial", "CH340"]):
+                    target_port = p.device
+                    break
+            
+            if target_port:
+                try:
+                    # 115200 is standard for the Router Bridge library
+                    arduino = serial.Serial(target_port, 115200, timeout=0.1)
+                    print(f"[Arduino] Connected to {target_port}")
+                except Exception as e:
+                    arduino = None
+            
+            if arduino is None:
+                time.sleep(2)  # Wait before retrying
+                continue
+
+        try:
+            if arduino.in_waiting > 0:
+                line = arduino.readline().decode('utf-8', errors='ignore').strip()
+                if line:
+                    # The Bridge library usually sends data in a format like:
+                    # "~notify:on_button_press:left~" or "notify:on_button_press:left"
+                    # We handle multiple variants here:
+                    if "on_button_press" in line:
+                        parts = line.replace("~", "").split(":")
+                        action = parts[-1].strip()
+                        print(f"[Arduino] Action received: {action}")
+                        socketio.emit("arduino_input", action)
+        except Exception as e:
+            print(f"[Arduino] Connection lost: {e}")
+            arduino = None
+            time.sleep(1)
+
+
 # ─── Boot ─────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    # Start the Arduino listener in the background
+    threading.Thread(target=arduino_serial_loop, daemon=True).start()
+
     print("FratDex server  ->  http://0.0.0.0:3000")
     socketio.run(app, host="0.0.0.0", port=3000, debug=True, allow_unsafe_werkzeug=True)

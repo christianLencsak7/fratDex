@@ -34,6 +34,22 @@ async function syncState() {
   }
 }
 
+// ─── Sound System ────────────────────────────────────────────────
+const SOUNDS = {
+  success: "sounds/success.mp3",
+  error:   "sounds/error.mp3",
+  click:   "sounds/click.mp3"
+};
+
+function playSound(type) {
+  const audio = new Audio(SOUNDS[type]);
+  audio.play().catch(e => {
+    console.warn(`Audio play failed for ${type}:`, e);
+    // Fallback to synthetic beep if MP3 is missing/fails
+    if (type === 'success' || type === 'click') playVictorySound();
+  });
+}
+
 function playVictorySound() {
   const AudioContext = window.AudioContext || window.webkitAudioContext;
   if (!AudioContext) return;
@@ -135,6 +151,29 @@ function startSocketListeners() {
       broadcastStateChange();
     }
   });
+
+  // ─── Arduino Controller Support ─────────────────────────────────
+  socket.on("arduino_input", (action) => {
+    console.log(`[Arduino] Action: ${action}`);
+    const keyMap = {
+      "up":     "ArrowUp",
+      "down":   "ArrowDown",
+      "left":   "ArrowLeft",
+      "right":  "ArrowRight",
+      "enter":  "Enter",
+      "escape": "Escape"
+    };
+    const keyName = keyMap[action];
+    if (keyName) {
+      // Create and dispatch a fake keyboard event to trigger existing navigation logic
+      const event = new KeyboardEvent("keydown", {
+        key: keyName,
+        bubbles: true,
+        cancelable: true
+      });
+      document.dispatchEvent(event);
+    }
+  });
 }
 
 
@@ -195,12 +234,14 @@ function setupMenu() {
   }
 
   function highlight(next) {
+    if (current !== next) playSound('click');
     nodes.forEach((node) => node.classList.toggle("is-selected", node === next));
     current = next;
     current.focus();
   }
 
   function activateCurrent() {
+    playSound('click');
     const href = current.dataset.href;
     if (href) window.location.href = href;
   }
@@ -252,12 +293,14 @@ function setupCamera() {
       const conf     = typeof result.score === "number" ? ` (${(result.score * 100).toFixed(0)}%)` : "";
 
       if (result.success && result.player && result.player !== "Unknown") {
+        playSound('success');
         if (scanLabel) {
           scanLabel.textContent = result.player.toUpperCase() + conf;
           scanLabel.classList.remove("blink");
         }
         localStorage.setItem("last-scanned-player", result.player);
       } else {
+        playSound('error');
         if (scanLabel) {
           const reason = result.reason || "No Match";
           scanLabel.textContent = reason + conf;
@@ -265,6 +308,7 @@ function setupCamera() {
         }
       }
     } catch {
+      playSound('error');
       if (scanLabel) {
         scanLabel.textContent = "Server Offline";
         scanLabel.classList.remove("blink");
@@ -342,7 +386,10 @@ function setupDex() {
   }
 
   MODES.forEach((m, i) => {
-    document.getElementById(m.id)?.addEventListener("click", () => openModeGrid(i));
+    document.getElementById(m.id)?.addEventListener("click", () => {
+      playSound('click');
+      openModeGrid(i);
+    });
   });
 
   // ── GRID ──────────────────────────────────────────────────────
@@ -384,6 +431,7 @@ function setupDex() {
         <div class="tile-team">${roleDisplay}</div>
       `;
       tile.addEventListener("click", () => {
+        playSound('click');
         gridIndex   = i;
         activeIndex = i;
         showDetail();
@@ -473,18 +521,19 @@ function setupDex() {
     if (view === "mode") {
       if (key === "Escape" || key === "Backspace") { event.preventDefault(); goHome(); return; }
       const dir = getDirection(event);
-      if (dir === "up")   { event.preventDefault(); modeIndex = (modeIndex - 1 + MODES.length) % MODES.length; renderMode(); }
-      if (dir === "down") { event.preventDefault(); modeIndex = (modeIndex + 1) % MODES.length; renderMode(); }
-      if (key === "Enter") { event.preventDefault(); openModeGrid(modeIndex); }
+      if (dir === "up")   { event.preventDefault(); playSound('click'); modeIndex = (modeIndex - 1 + MODES.length) % MODES.length; renderMode(); }
+      if (dir === "down") { event.preventDefault(); playSound('click'); modeIndex = (modeIndex + 1) % MODES.length; renderMode(); }
+      if (key === "Enter") { event.preventDefault(); playSound('click'); openModeGrid(modeIndex); }
       return;
     }
 
     if (view === "grid") {
-      if (key === "Escape" || key === "Backspace") { event.preventDefault(); showMode(); return; }
-      if (key === "Enter") { event.preventDefault(); activeIndex = gridIndex; showDetail(); return; }
+      if (key === "Escape" || key === "Backspace") { event.preventDefault(); playSound('click'); showMode(); return; }
+      if (key === "Enter") { event.preventDefault(); playSound('click'); activeIndex = gridIndex; showDetail(); return; }
       const dir = getDirection(event);
       if (!dir) return;
       event.preventDefault();
+      playSound('click');
       if (dir === "up")    gridIndex = Math.max(0, gridIndex - COLS);
       if (dir === "down")  gridIndex = Math.min(activePlayers.length - 1, gridIndex + COLS);
       if (dir === "left")  gridIndex = Math.max(0, gridIndex - 1);
@@ -496,6 +545,7 @@ function setupDex() {
     if (view === "detail") {
       if (key === "Escape" || key === "Backspace") {
         event.preventDefault();
+        playSound('click');
         view = "grid";
         hideAll();
         gridView.classList.remove("dex-view--hidden");
@@ -503,8 +553,8 @@ function setupDex() {
         return;
       }
       const dir = getDirection(event);
-      if (dir === "left")  { event.preventDefault(); activeIndex = Math.max(0, activeIndex - 1); gridIndex = activeIndex; renderDetail(); }
-      if (dir === "right") { event.preventDefault(); activeIndex = Math.min(activePlayers.length - 1, activeIndex + 1); gridIndex = activeIndex; renderDetail(); }
+      if (dir === "left")  { event.preventDefault(); playSound('click'); activeIndex = Math.max(0, activeIndex - 1); gridIndex = activeIndex; renderDetail(); }
+      if (dir === "right") { event.preventDefault(); playSound('click'); activeIndex = Math.min(activePlayers.length - 1, activeIndex + 1); gridIndex = activeIndex; renderDetail(); }
     }
   });
 
