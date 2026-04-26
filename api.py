@@ -13,11 +13,13 @@ Run:
   uvicorn api:app --host 0.0.0.0 --port 8000 --reload
 """
 
-from fastapi import FastAPI
+from fastapi import FastAPI, BackgroundTasks
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import asyncio
+import socketio
+import re
 import cv2
 import numpy as np
 import pickle
@@ -59,6 +61,14 @@ NAME_MAP = {
     "Zumrut Akcam-Kibis": "Zumrut Akcam-Kibis",
     "Zumrut Akcam Kibis": "Zumrut Akcam-Kibis",
 }
+
+def camel_to_title(name: str) -> str:
+    """Converts ryanCatalano -> Ryan Catalano"""
+    s1 = re.sub('(.)([A-Z][a-z]+)', r'\1 \2', name)
+    s2 = re.sub('([a-z0-9])([A-Z])', r'\1 \2', s1)
+    return s2.title()
+
+sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins='*')
 
 # ─── State helpers ─────────────────────────────────────────────────────────────
 
@@ -206,8 +216,12 @@ def get_database():
     return JSONResponse({"names": list(database.keys()), "count": len(database)})
 
 
+async def emit_scan_events(name: str, state: dict):
+    await sio.emit("scan_event", name)
+    await sio.emit("state_update", state)
+
 @app.post("/api/scan")
-def scan():
+def scan(background_tasks: BackgroundTasks):
     """
     Grab the latest camera frame (already flipped by background thread),
     run InsightFace, update state.json, return result.
@@ -230,7 +244,7 @@ def scan():
 
         face = max(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
         raw_name, score = recognize_person(face.embedding)
-        name = NAME_MAP.get(raw_name, raw_name)
+        name = NAME_MAP.get(raw_name) or camel_to_title(raw_name)
 
         print(f"[Scan] {raw_name} → {name} ({score:.3f})")
 
@@ -247,6 +261,9 @@ def scan():
                 state["collected"].append(name)
                 save_state(state)
             set_overlay(name, (80, 255, 80))
+            
+            background_tasks.add_task(emit_scan_events, name, state)
+            
             return JSONResponse({
                 "success":         True,
                 "player":          name,
@@ -310,3 +327,14 @@ def api_health():
 def health():
     """Simple liveness alias — always 200 if uvicorn is up."""
     return {"status": "ok", "db_size": len(database)}
+
+@app.post("/api/input")
+async def handle_input(payload: dict):
+    """Receives button press events from the Arduino controller."""
+    key = payload.get("key", "")
+    print(f"[Input] Button: {key}")
+    await sio.emit("arduino_input", key)
+    return JSONResponse({"received": key})
+
+# Wrap the FastAPI app with the ASGI Socket.IO app
+app = socketio.ASGIApp(sio, other_asgi_app=app)
