@@ -369,7 +369,7 @@ function setupCamera() {
   document.addEventListener("click",       () => scan());
   document.addEventListener("contextmenu", (e) => { e.preventDefault(); scan(); });
   document.addEventListener("keydown", (event) => {
-    if (event.key === " " || event.key === "Spacebar") { event.preventDefault(); scan(); return; }
+    if (event.key === "Enter") { event.preventDefault(); scan(); return; }
     if (event.key === "Escape" || event.key === "Backspace") { event.preventDefault(); goHome(); }
   });
 }
