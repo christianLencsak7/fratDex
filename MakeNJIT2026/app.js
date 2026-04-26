@@ -155,7 +155,8 @@ function broadcastStateChange() {
 // Listens for instant server broadcasts via Socket.IO
 function startSocketListeners() {
   if (!window.io) return;
-  const socketUrl = PI_HOST || `http://${window.location.hostname}:8000`;
+  const socketUrl = PI_HOST || `http://${window.location.hostname}:${window.location.port || '8000'}`;
+  console.log(`[Socket] Connecting to ${socketUrl}...`);
   const socket = window.io(socketUrl);
   socket.on("state_update", (state) => {
     let changed = false;
@@ -771,8 +772,7 @@ function setupTasks() {
 
   window.addEventListener("fratdex:statechange", render);
   syncState().then(() => render());
-  startSocketListeners();
-
+  
   document.addEventListener("keydown", (event) => {
     const key = event.key;
     if (key === "Escape" || key === "Backspace") {
@@ -818,8 +818,8 @@ function setupTasks() {
 
 // ─── Boot ─────────────────────────────────────────────────────────
 (async () => {
-  await syncState();
   startSocketListeners();
+  await syncState();
   if (page === "menu")    setupMenu();
   else if (page === "camera") setupCamera();
   else if (page === "dex")    setupDex();
