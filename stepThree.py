@@ -41,7 +41,14 @@ def build_face_database(known_faces_folder):
             print(f"  [OK] {img_file}")
 
         if embeddings:
-            database[person_name] = np.mean(embeddings, axis=0)
+            if len(embeddings) >= 3:
+                mean = np.mean(embeddings, axis=0)
+                sims = [np.dot(e, mean) / (np.linalg.norm(e) * np.linalg.norm(mean)) for e in embeddings]
+                threshold = np.mean(sims) - np.std(sims)
+                filtered = [e for e, s in zip(embeddings, sims) if s >= threshold]
+                database[person_name] = np.mean(filtered, axis=0)
+            else:
+                database[person_name] = np.mean(embeddings, axis=0)
             print(f"  -> {len(embeddings)} photos processed for {person_name}\n")
         else:
             print(f"  [FAIL] No valid faces found for {person_name}\n")

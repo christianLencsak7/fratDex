@@ -17,7 +17,7 @@ print(f"✅ Loaded database with {len(database)} people!")
 app = FaceAnalysis(name='buffalo_l')
 app.prepare(ctx_id=-1, det_size=(320, 320))
 
-def recognize_person(embedding, threshold=0.45):  # lower threshold — personal faces are trickier
+def recognize_person(embedding, threshold=0.55):  # lower threshold — personal faces are trickier
     best_match = None
     best_score = -1
 

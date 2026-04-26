@@ -36,19 +36,45 @@ async function syncState() {
 
 // ─── Sound System ────────────────────────────────────────────────
 const SOUNDS = {
-  success: "sounds/success.mp3",
-  error:   "sounds/error.mp3",
-  click:   "sounds/click.mp3"
+  success:  "audios/success.mp3",
+  error:    "audios/error.mp3",
+  levelUp:  "audios/level-up.mp3",
+  aButton:  "audios/a-button.mp3",
+  bump:     "audios/bump.mp3",
+  shutter:  "audios/shutter.mp3",
+  click:    "audios/a-button.mp3", 
+  select:   "audios/select.mp3"
 };
 
+let audioUnlocked = false;
+document.addEventListener("keydown", () => {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  ctx.resume();
+}, { once: false });
+
+const SOUND_TIMEOUT = 80;
+let lastSoundTimes = {};
+
 function playSound(type) {
+  const now = Date.now();
+  // Prevent the same sound from playing too rapidly (e.g. double triggers)
+  if (lastSoundTimes[type] && (now - lastSoundTimes[type] < SOUND_TIMEOUT)) {
+    return;
+  }
+  
   const audio = new Audio(SOUNDS[type]);
+  lastSoundTimes[type] = now;
+  
   audio.play().catch(e => {
     console.warn(`Audio play failed for ${type}:`, e);
     // Fallback to synthetic beep if MP3 is missing/fails
     if (type === 'success' || type === 'click') playVictorySound();
   });
 }
+
+// ─── Sounds are now handled by context-specific listeners to avoid double-triggering ───
 
 function playVictorySound() {
   const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -178,7 +204,10 @@ function startSocketListeners() {
 
 
 function goHome() {
-  window.location.href = "index.html";
+  playSound('bump');
+  setTimeout(() => {
+    window.location.href = "index.html";
+  }, 500);
 }
 
 function getDirection(event) {
@@ -240,11 +269,17 @@ function setupMenu() {
     current.focus();
   }
 
-  function activateCurrent() {
-    playSound('click');
+ function activateCurrent() {
     const href = current.dataset.href;
-    if (href) window.location.href = href;
-  }
+    if (!href) return;
+    const audio = new Audio(SOUNDS['select']);
+    audio.play().catch(() => {});
+    audio.addEventListener('playing', () => {
+      setTimeout(() => { window.location.href = href; }, 750);
+    });
+    // Fallback in case 'playing' never fires
+    setTimeout(() => { window.location.href = href; }, 750);
+}
 
   nodes.forEach((node) => {
     node.addEventListener("mouseenter", () => highlight(node));
@@ -264,6 +299,11 @@ function setupMenu() {
     if (event.key === "Enter") {
       event.preventDefault();
       activateCurrent();
+    }
+    if (event.key === "Escape" || event.key === "Backspace") {
+      event.preventDefault();
+      playSound('bump');
+      goHome();
     }
   });
 }
@@ -287,13 +327,19 @@ function setupCamera() {
     }
 
     try {
+      playSound('shutter');
       // Tell the Pi to grab the current frame and run InsightFace on it
       const response = await fetch(API_SCAN, { method: "POST" });
       const result   = await response.json();
       const conf     = typeof result.score === "number" ? ` (${(result.score * 100).toFixed(0)}%)` : "";
 
       if (result.success && result.player && result.player !== "Unknown") {
-        playSound('success');
+        if (result.newly_collected) {
+          playSound('levelUp');
+        } else {
+          playSound('success');
+        }
+        
         if (scanLabel) {
           scanLabel.textContent = result.player.toUpperCase() + conf;
           scanLabel.classList.remove("blink");
@@ -472,23 +518,15 @@ function setupDex() {
       if (nameNode)    nameNode.textContent = player.name;
       if (teamNode)    teamNode.textContent = player.team;
       if (roleNode)    roleNode.textContent = player.pos;
-      if (notesNode)   notesNode.innerHTML  = buildProfileGrid(player);
+      if (notesNode)   notesNode.innerHTML  = `<div class="bio-text">${player.bio || "Little is known about this pokemon"}</div>` + buildProfileGrid(player);
       if (statusBadge) statusBadge.textContent = "Collected";
-      if (statsNode) {
-        statsNode.innerHTML = "";
-        player.stats.forEach(([label, value]) => {
-          const row = document.createElement("div");
-          row.className = "stat-row";
-          row.innerHTML = `<span>${label} ${value}</span><div class="stat-bar" style="--bar-fill:${value}%;"><span></span></div>`;
-          statsNode.appendChild(row);
-        });
-      }
+
     } else {
       spriteBox.className = "detail-sprite sprite-unknown";
       if (nameNode)    nameNode.textContent = "???";
       if (teamNode)    teamNode.textContent = "Not yet scanned";
       if (roleNode)    roleNode.textContent = "";
-      if (notesNode)   notesNode.innerHTML  = buildProfileGrid(null);
+      if (notesNode)   notesNode.innerHTML  = `<div class="bio-text">Little is known about this pokemon</div>` + buildProfileGrid(null);
       if (statusBadge) statusBadge.textContent = "Locked";
       if (statsNode)   statsNode.innerHTML  = "";
     }
@@ -499,13 +537,18 @@ function setupDex() {
     if (!player) {
       return `<div class="profile-grid profile-grid--locked">
         <span class="pg-label">Status</span><span class="pg-value">Locked</span>
+        <span class="pg-label">Roll #</span><span class="pg-value">?</span>
+        <span class="pg-label">Major</span><span class="pg-value">?</span>
+        <span class="pg-label">Hometown</span><span class="pg-value">?</span>
       </div>`;
     }
     const rows = [
-      ["Chapter", player.team],
-      ["Role",    player.pos],
-      ["School",  "Stevens"],
-      ["Frat",    "\u03a3\u03a6\u0395"],
+      ["Roll #",   player.roll || "?"],
+      ["Major",    player.major || "?"],
+      ["Hometown", player.hometown || "?"],
+      ["Birthday", player.bday || "?"],
+      ["Big",      player.big || "?"],
+      ["School",   "Stevens"],
     ];
     return `<div class="profile-grid">${
       rows.map(([label, val]) =>
@@ -521,23 +564,24 @@ function setupDex() {
     if (view === "mode") {
       if (key === "Escape" || key === "Backspace") { event.preventDefault(); goHome(); return; }
       const dir = getDirection(event);
-      if (dir === "up")   { event.preventDefault(); playSound('click'); modeIndex = (modeIndex - 1 + MODES.length) % MODES.length; renderMode(); }
-      if (dir === "down") { event.preventDefault(); playSound('click'); modeIndex = (modeIndex + 1) % MODES.length; renderMode(); }
-      if (key === "Enter") { event.preventDefault(); playSound('click'); openModeGrid(modeIndex); }
+      if (dir === "up")   { event.preventDefault(); modeIndex = (modeIndex - 1 + MODES.length) % MODES.length; renderMode(); }
+      if (dir === "down") { event.preventDefault(); modeIndex = (modeIndex + 1) % MODES.length; renderMode(); }
+      if (key === "Enter") { event.preventDefault(); playSound('aButton'); openModeGrid(modeIndex); }
       return;
     }
 
     if (view === "grid") {
-      if (key === "Escape" || key === "Backspace") { event.preventDefault(); playSound('click'); showMode(); return; }
-      if (key === "Enter") { event.preventDefault(); playSound('click'); activeIndex = gridIndex; showDetail(); return; }
+      if (key === "Escape" || key === "Backspace") { event.preventDefault(); playSound('bump'); showMode(); return; }
+      if (key === "Enter") { event.preventDefault(); playSound('aButton'); activeIndex = gridIndex; showDetail(); return; }
       const dir = getDirection(event);
       if (!dir) return;
       event.preventDefault();
-      playSound('click');
+      const oldIndex = gridIndex;
       if (dir === "up")    gridIndex = Math.max(0, gridIndex - COLS);
       if (dir === "down")  gridIndex = Math.min(activePlayers.length - 1, gridIndex + COLS);
       if (dir === "left")  gridIndex = Math.max(0, gridIndex - 1);
       if (dir === "right") gridIndex = Math.min(activePlayers.length - 1, gridIndex + 1);
+      if (oldIndex !== gridIndex) playSound('click');
       renderGrid();
       return;
     }
@@ -545,7 +589,7 @@ function setupDex() {
     if (view === "detail") {
       if (key === "Escape" || key === "Backspace") {
         event.preventDefault();
-        playSound('click');
+        playSound('bump');
         view = "grid";
         hideAll();
         gridView.classList.remove("dex-view--hidden");
@@ -553,8 +597,10 @@ function setupDex() {
         return;
       }
       const dir = getDirection(event);
-      if (dir === "left")  { event.preventDefault(); playSound('click'); activeIndex = Math.max(0, activeIndex - 1); gridIndex = activeIndex; renderDetail(); }
-      if (dir === "right") { event.preventDefault(); playSound('click'); activeIndex = Math.min(activePlayers.length - 1, activeIndex + 1); gridIndex = activeIndex; renderDetail(); }
+      const oldIndex = activeIndex;
+      if (dir === "left")  { event.preventDefault(); activeIndex = Math.max(0, activeIndex - 1); gridIndex = activeIndex; renderDetail(); }
+      if (dir === "right") { event.preventDefault(); activeIndex = Math.min(activePlayers.length - 1, activeIndex + 1); gridIndex = activeIndex; renderDetail(); }
+      if (oldIndex !== activeIndex) playSound('click');
     }
   });
 
@@ -730,14 +776,15 @@ function setupTasks() {
     const key = event.key;
     if (key === "Escape" || key === "Backspace") {
       event.preventDefault();
-      if (view === "list") { view = "categories"; render(); }
-      else if (view === "categories") { view = "main"; render(); }
+      if (view === "list") { playSound('bump'); view = "categories"; render(); }
+      else if (view === "categories") { playSound('bump'); view = "main"; render(); }
       else goHome();
       return;
     }
     const direction = getDirection(event);
     if (direction === "up" || direction === "down") {
       event.preventDefault();
+      const oldIdx = (view === "main") ? mainIndex : (view === "categories" ? catIndex : taskIndex);
       if (view === "main") {
         mainIndex = direction === "up"
           ? (mainIndex - 1 + mainOptions.length) % mainOptions.length
@@ -752,11 +799,14 @@ function setupTasks() {
           ? (taskIndex - 1 + activeTasks.length) % activeTasks.length
           : (taskIndex + 1) % activeTasks.length;
       }
+      const newIdx = (view === "main") ? mainIndex : (view === "categories" ? catIndex : taskIndex);
+      if (oldIdx !== newIdx) playSound('click');
       render();
       return;
     }
     if (key === "Enter") {
       event.preventDefault();
+      playSound('aButton');
       if (view === "main") {
         if (mainIndex === 0) { view = "categories"; render(); } else doNewTasks();
       } else if (view === "categories") openCategory();
