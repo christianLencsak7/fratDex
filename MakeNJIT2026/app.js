@@ -198,6 +198,7 @@ function startSocketListeners() {
   console.log(`[Socket] Connecting to ${socketUrl}...`);
   const socket = window.io(socketUrl);
   socket.on("state_update", (state) => {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
     let changed = false;
     players.forEach((p) => {
       const shouldBeCollected = state.collected.includes(p.name);
@@ -210,6 +211,7 @@ function startSocketListeners() {
   });
 
   socket.on("scan_event", (memberName) => {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
     const key = "fratdex-unlocked-before";
     const unlockedBefore = JSON.parse(localStorage.getItem(key) || "{}");
     if (unlockedBefore[memberName]) {
@@ -221,6 +223,7 @@ function startSocketListeners() {
 
   // ─── Arduino Controller Support ─────────────────────────────────
   socket.on("arduino_input", (action) => {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
     console.log(`[Arduino] Action: ${action}`);
     const keyMap = {
       "up":     "ArrowUp",
