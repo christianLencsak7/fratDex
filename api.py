@@ -60,6 +60,22 @@ NAME_MAP = {
     "zumrutAkcamKibis":   "Zumrut Akcam-Kibis",
     "Zumrut Akcam-Kibis": "Zumrut Akcam-Kibis",
     "Zumrut Akcam Kibis": "Zumrut Akcam-Kibis",
+    "aidanWilliamsHealy": "Aidan Williams-Healy",
+    "brandonBonadies":    "Brandan Bonadies",
+    "charlieLansdowne":   "Charles Lansdowne",
+    "connorMcGinley":     "Connor McGinley",
+    "francesaRegan":      "Francesca Reagan",
+    "jacobRadzieta":      "Jacob Radzietra",
+    "joshGervitz":        "Joshua Gervitz",
+    "lennyWeber":         "Leonard Weber",
+    "markLeszcynski":     "Mark Leszczynski",
+    "meghanBirns":        "Megan Birns",
+    "mikePreziosi":       "Michael Preziosi",
+    "nickFontana":        "Nicholas Fontana",
+    "stephenSargaent":    "Stephen Sargeant",
+    "willBany":           "William Bany",
+    "willSmith":          "William Smith",
+    "zachLittlewood":     "Zachary Littlewood"
 }
 
 def camel_to_title(name: str) -> str:

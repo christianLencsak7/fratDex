@@ -288,7 +288,9 @@ const players = [
     big: "Sam Ferro",
 
   }),
-  mkMember(43, "Christian Osowski",         CHAPTER, "Brother", false, C.BRO),
+  mkMember(43, "Christian Osowski",         CHAPTER, "Brother", false, C.BRO, {
+    bio: "ball knower, do not ask this pokemon who trey murphy the third is though"
+  }),
   mkMember(44, "Michael Prescott",          CHAPTER, "Brother", false, C.BRO),
   mkMember(45, "Ansh Razdan",               CHAPTER, "Brother", false, C.BRO),
   mkMember(46, "Stephen Sargeant",          CHAPTER, "Brother", false, C.BRO, {
@@ -485,4 +487,5 @@ const players = [
     big: "Harris Hamid",
 
   }),
+  mkMember(161, "Jackson Corbett",     CHAPTER, "Brother", false, C.BRO),
 ];
