@@ -194,7 +194,7 @@ function broadcastStateChange() {
 // Listens for instant server broadcasts via Socket.IO
 function startSocketListeners() {
   if (!window.io) return;
-  const socketUrl = PI_HOST || `http://${window.location.hostname}:${window.location.port || '8000'}`;
+  const socketUrl = PI_HOST || `http://${window.location.hostname}`;
   console.log(`[Socket] Connecting to ${socketUrl}...`);
   const socket = window.io(socketUrl);
   socket.on("state_update", (state) => {
