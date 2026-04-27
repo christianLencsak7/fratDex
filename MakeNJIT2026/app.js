@@ -46,13 +46,39 @@ const SOUNDS = {
   select:   "audios/select.mp3"
 };
 
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+const audioBuffers = {};
+
+async function preloadSounds() {
+  for (const [key, url] of Object.entries(SOUNDS)) {
+    try {
+      const response = await fetch(url);
+      const arrayBuffer = await response.arrayBuffer();
+      audioCtx.decodeAudioData(arrayBuffer, (buffer) => {
+        audioBuffers[key] = buffer;
+      }, (e) => {
+        console.warn(`Error decoding audio data for ${key}`, e);
+      });
+    } catch (e) {
+      console.warn(`Failed to fetch sound: ${key}`, e);
+    }
+  }
+}
+preloadSounds();
+
 let audioUnlocked = false;
-document.addEventListener("keydown", () => {
+function unlockAudio() {
   if (audioUnlocked) return;
-  audioUnlocked = true;
-  const ctx = new (window.AudioContext || window.webkitAudioContext)();
-  ctx.resume();
-}, { once: false });
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume().then(() => { audioUnlocked = true; });
+  } else {
+    audioUnlocked = true;
+  }
+}
+// Unlock on any physical user interaction
+document.addEventListener("keydown", unlockAudio, { once: false });
+document.addEventListener("click", unlockAudio, { once: false });
+document.addEventListener("touchstart", unlockAudio, { once: false });
 
 const SOUND_TIMEOUT = 80;
 let lastSoundTimes = {};
@@ -63,36 +89,49 @@ function playSound(type) {
   if (lastSoundTimes[type] && (now - lastSoundTimes[type] < SOUND_TIMEOUT)) {
     return;
   }
-  
-  const audio = new Audio(SOUNDS[type]);
   lastSoundTimes[type] = now;
   
+  // Attempt to play via Web Audio API if loaded
+  if (audioBuffers[type]) {
+    try {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const source = audioCtx.createBufferSource();
+      source.buffer = audioBuffers[type];
+      source.connect(audioCtx.destination);
+      source.start(0);
+      return;
+    } catch (e) {
+      console.warn(`WebAudio play failed for ${type}:`, e);
+    }
+  }
+
+  // Fallback to HTML5 Audio if not loaded or failed
+  const audio = new Audio(SOUNDS[type]);
   audio.play().catch(e => {
     console.warn(`Audio play failed for ${type}:`, e);
     // Fallback to synthetic beep if MP3 is missing/fails
-    if (type === 'success' || type === 'click') playVictorySound();
+    if (type === 'success' || type === 'click' || type === 'levelUp') playVictorySound();
   });
 }
 
 // ─── Sounds are now handled by context-specific listeners to avoid double-triggering ───
 
 function playVictorySound() {
-  const AudioContext = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContext) return;
-  const ctx = new AudioContext();
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
+  if (!audioCtx) return;
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
   osc.connect(gain);
-  gain.connect(ctx.destination);
+  gain.connect(audioCtx.destination);
   osc.type = "square";
-  osc.frequency.setValueAtTime(523.25, ctx.currentTime);
-  osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.1);
-  osc.frequency.setValueAtTime(783.99, ctx.currentTime + 0.2);
-  osc.frequency.setValueAtTime(1046.50, ctx.currentTime + 0.3);
-  gain.gain.setValueAtTime(0.05, ctx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.8);
+  osc.frequency.setValueAtTime(523.25, audioCtx.currentTime);
+  osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.1);
+  osc.frequency.setValueAtTime(783.99, audioCtx.currentTime + 0.2);
+  osc.frequency.setValueAtTime(1046.50, audioCtx.currentTime + 0.3);
+  gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.8);
   osc.start();
-  osc.stop(ctx.currentTime + 0.8);
+  osc.stop(audioCtx.currentTime + 0.8);
 }
 
 function showToast(message) {
@@ -274,12 +313,7 @@ function setupMenu() {
  function activateCurrent() {
     const href = current.dataset.href;
     if (!href) return;
-    const audio = new Audio(SOUNDS['select']);
-    audio.play().catch(() => {});
-    audio.addEventListener('playing', () => {
-      setTimeout(() => { window.location.href = href; }, 750);
-    });
-    // Fallback in case 'playing' never fires
+    playSound('select');
     setTimeout(() => { window.location.href = href; }, 750);
 }
 

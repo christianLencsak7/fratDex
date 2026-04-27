@@ -125,6 +125,7 @@ const players = [
 
   }),
   mkMember(18, "Julia Green",       CHAPTER, "Sweetheart", false, C.SWEET),
+  mkMember(93, "Emily Prasad",      CHAPTER, "Sweetheart", false, C.SWEET),
 
   // ── Brothers – Section 1 (Left) ──────────────────────────────────────
   mkMember(19, "Brandan Bonadies",          CHAPTER, "Brother", false, C.BRO),
@@ -406,7 +407,14 @@ const players = [
 
   }),
   mkMember(77, "Mike Lanfranco",      CHAPTER, "Brother", false, C.BRO),
-  mkMember(78, "Kieran Corson",       CHAPTER, "Brother", false, C.BRO),
+  mkMember(78, "Kieran Corson",       CHAPTER, "Brother", false, C.BRO, {
+    hometown: "Cherry Hill, New Jersey",
+    major: "Computer Science",
+    roll: "1335",
+    bday: "?",
+    bio: "As a former VPMD, Kieran has now entered a classic post EC position of being a bum and getting a girlfriend",
+    big: "Fris (Anthony Frisolone)",
+  }),
   mkMember(79, "Samuel Ferro",        CHAPTER, "Brother", false, C.BRO, {
     hometown: "Ocean Nj",
     major: "mech e",
